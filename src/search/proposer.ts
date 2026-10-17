@@ -121,7 +121,7 @@ function unwrapSample(result: NodeResult<SampleOutput>): string {
   if (result.status !== "success" || !result.output) {
     throw new Error(`Optimizer Node failed [${result.error?.code ?? result.status}]: ${result.error?.message ?? "no output"}`);
   }
-  if (result.output.finishReason === "length" || result.output.finishReason === "error") {
+  if (result.output.finishReason === "error" || result.output.finishReason === "cancelled") {
     throw new Error(`Optimizer Node failed [PROVIDER_OUTPUT_TRUNCATED]: ${result.output.finishReason}`);
   }
   const content = result.output.message.content;

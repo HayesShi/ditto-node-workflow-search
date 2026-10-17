@@ -1,3 +1,5 @@
+> 本文件保留成员 PR 的历史记录。MATH/Automation 当前搜索范围、提示策略和版本校验以 [2026-10-18 修改说明](topology-fixes-20261018.zh-CN.md) 为准。
+
 # MATH and AutomationBench engineering validation
 
 This experiment consumes `@codesoul-co/ditto@0.1.1`. It does not patch Ditto Core

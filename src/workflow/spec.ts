@@ -14,7 +14,7 @@ import {
 } from "../domain.js";
 import { GENERATION } from "../protocol.js";
 
-const GRAPH_ORDER = ["prepare", "solve", "refine"] as const;
+const GRAPH_ORDER: readonly string[] = ["prepare", "solve", "refine"];
 const NODE_ID = /^[a-z][a-z0-9-]{0,63}$/;
 const SEARCH_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
 const DELIBERATION_MODES = new Set(["select", "merge", "consensus", "debate"]);
@@ -133,6 +133,7 @@ export function validateNode(node: WorkflowNodeSpec): void {
     if (node.graphId !== "prepare" || node.dependencies.length !== 0) throw new Error("CONTEXT.LOAD must be dependency-free in prepare");
     return;
   }
+  if (node.type === "CONTEXT.UPDATE" || node.type === "CONTEXT.SELECT" || node.type === "CONTEXT.COMPRESS" || node.type === "INTERACTION.ACT.TOOL" || node.type === "INTERACTION.OBSERVE" || node.type === "INTERACTION.OUTPUT") throw new Error("Interaction nodes require a validated organization plan");
   validateGeneration(node.config.generation);
   if (node.type === "INFER.REASONING.TRAJECTORY") {
     if (node.graphId !== "solve") throw new Error("TRAJECTORY belongs to solve");

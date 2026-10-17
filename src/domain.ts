@@ -11,7 +11,9 @@ export type SearchableNodeType =
   | "INFER.REASONING.SAMPLE"
   | "INFER.REASONING.TRAJECTORY"
   | "INFER.REASONING.REFLECT"
-  | "INFER.REASONING.DELIBERATE";
+  | "INFER.REASONING.DELIBERATE"
+  | "CONTEXT.UPDATE" | "CONTEXT.SELECT" | "CONTEXT.COMPRESS"
+  | "INTERACTION.ACT.TOOL" | "INTERACTION.OBSERVE" | "INTERACTION.OUTPUT";
 
 export interface GenerationSpec {
   readonly temperature: number;
@@ -76,7 +78,14 @@ export interface DeliberateNodeSpec {
   };
 }
 
-export type WorkflowNodeSpec = ContextLoadNodeSpec | SampleNodeSpec | TrajectoryNodeSpec | ReflectNodeSpec | DeliberateNodeSpec;
+export type RuntimeNodeSpec = { [T in "CONTEXT.UPDATE" | "CONTEXT.SELECT" | "CONTEXT.COMPRESS" | "INTERACTION.ACT.TOOL" | "INTERACTION.OBSERVE" | "INTERACTION.OUTPUT"]: {
+  readonly id: string;
+  readonly type: T;
+  readonly graphId: string;
+  readonly dependencies: readonly string[];
+  readonly config: { readonly template: string };
+} }["CONTEXT.UPDATE" | "CONTEXT.SELECT" | "CONTEXT.COMPRESS" | "INTERACTION.ACT.TOOL" | "INTERACTION.OBSERVE" | "INTERACTION.OUTPUT"];
+export type WorkflowNodeSpec = ContextLoadNodeSpec | SampleNodeSpec | TrajectoryNodeSpec | ReflectNodeSpec | DeliberateNodeSpec | RuntimeNodeSpec;
 export type NodeProposal = Omit<SampleNodeSpec, "id"> | Omit<TrajectoryNodeSpec, "id"> | Omit<ReflectNodeSpec, "id"> | Omit<DeliberateNodeSpec, "id">;
 
 export interface SearchNodeStatistics {
@@ -108,7 +117,7 @@ export interface LocalGraphSpec {
 export type OutputCondition = {
   readonly sourceNodeId: string;
   readonly path?: readonly string[];
-  readonly operator: "equals" | "not-equals" | "truthy" | "falsy";
+  readonly operator: "equals" | "not-equals" | "truthy" | "falsy" | "has-pending-actions" | "no-pending-actions";
   readonly value?: unknown;
 };
 
@@ -119,6 +128,7 @@ export type GraphTransition =
   | { readonly kind: "switch"; readonly cases: readonly { readonly when: OutputCondition; readonly graphId: string }[]; readonly defaultGraphId?: string };
 
 export interface AgentPlanSpec {
+  readonly organization?: import("./workflow/organization-types.js").OrganizationSpec;
   readonly id: string;
   readonly leafSearchNodeId: string;
   readonly nodes: readonly WorkflowNodeSpec[];
@@ -156,6 +166,8 @@ export interface ScoreEvidence {
 }
 
 export interface CaseResult extends ScoreEvidence {
+  /** Private scorer recovery state; never forwarded to the actor or optimizer. */
+  readonly judgeRecovery?: unknown;
   readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
   readonly providerAttempts?: number;
   readonly unknownUsageAttempts?: number;
@@ -214,6 +226,7 @@ export interface EvaluationSummary {
 }
 
 export interface SearchExperience {
+  readonly organization?: import("./workflow/organization-types.js").OrganizationSpec;
   readonly searchNodeId: string;
   readonly parentSearchNodeId: string | null;
   readonly node: WorkflowNodeSpec;
@@ -225,6 +238,7 @@ export interface SearchExperience {
 
 /** One logical provider invocation, including each underlying HTTP retry. */
 export interface ProviderCallDiagnostics {
+  readonly finishReason?: string;
   readonly requestId: number;
   readonly attempts: number;
   readonly failedAttempts: number;

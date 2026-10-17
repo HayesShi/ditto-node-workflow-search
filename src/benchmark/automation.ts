@@ -224,7 +224,7 @@ export const automationAdapter: BenchmarkAdapter = Object.freeze({
       const taskId = requireString(reference.automationTaskId, "automationTaskId", path, row);
       const id = requireString(raw.id, "id", path, row);
       if (id !== `automationbench:${taskId}`) throw new Error("AutomationBench public task ID mismatch");
-      return Object.freeze({ id, dataset: "automationbench", prompt: requireString(raw.prompt, "prompt", path, row), outputInstruction: "Prepare a concrete tool-use plan. Planning does not perform actions; a common execution stage will use the official APIs afterward.", metadata: Object.freeze({ split: options.split, domain: taskId.split(".")[0]! }) });
+      return Object.freeze({ id, dataset: "automationbench", prompt: requireString(raw.prompt, "prompt", path, row), outputInstruction: "", metadata: Object.freeze({ split: options.split, domain: taskId.split(".")[0]! }) });
     });
     const tasks = stratifiedSample(rows, options.limit ?? 0, options.seed ?? 42, (task) => String(task.metadata.domain));
     return Object.freeze({ dataset: "automationbench", split: options.split, tasks,
@@ -234,15 +234,17 @@ export const automationAdapter: BenchmarkAdapter = Object.freeze({
         try {
           return await evaluateTasks(tasks, {
             expectedLabel: () => "Official final-world assertions",
-            async score(taskId): Promise<ScoreEvidence> {
-              const saved = snapshots.get(taskId);
+            recoveryData(taskId) { const saved = snapshots.get(taskId); snapshots.delete(taskId); return saved; },
+            async score(taskId, _prediction, prior): Promise<ScoreEvidence> {
+              const saved = snapshots.get(taskId) ?? prior?.judgeRecovery as SavedExecution | undefined;
               if (!saved?.snapshot.world) throw new Error("AutomationBench scoring requires a saved world, not a textual answer");
               const session = await bridge.start(taskId.slice("automationbench:".length));
               try {
                 const grade = await session.grade(saved.snapshot);
                 if ((grade.score !== 0 && grade.score !== 1) || !Number.isFinite(grade.partialCredit) || grade.partialCredit < 0 || grade.partialCredit > 1) throw new Error("Invalid official AutomationBench grade");
+                snapshots.delete(taskId);
                 return { score: grade.score, expected: "Official final-world assertions", prediction: saved.answer, normalizedExpected: "official state assertions", normalizedPrediction: String(grade.score), method: "automationbench-official-assertions-v1", details: { partialCredit: grade.partialCredit, assertions: grade.assertions, finalWorld: saved.snapshot.world, taskContract: saved.snapshot.contract, taskId, officialRevision: REVISION, toolTrace: saved.trace, sessionId: saved.sessionId } };
-              } finally { await session.close(); snapshots.delete(taskId); }
+              } finally { try { await session.close(); } catch (error) { snapshots.set(taskId, saved); throw error; } }
             },
           }, async (task) => {
             const session = await bridge.start(task.id.slice("automationbench:".length));

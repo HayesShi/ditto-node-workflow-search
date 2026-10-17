@@ -187,13 +187,14 @@ test("trajectory execution completes beyond the Core default sixteen calls", asy
   } finally { await runtime.close(); }
 });
 
-test("SAMPLE and TRAJECTORY length truncation cannot become scored answers", async () => {
+test("SAMPLE and TRAJECTORY preserve received answers at the token limit", async () => {
   const provider: ModelProvider = { async invoke() { return { message: { role: "assistant", content: "2" }, finishReason: "length", usage: { totalTokens: 3 } }; } };
   const runtime = createDitto({ workers: [createContextWorker(), createInferWorker({ providers: { fixture: provider }, defaultProvider: "fixture" })] });
   try {
     for (const node of [createInitialSampleNode(), createInitialTrajectoryNode()]) {
       const plan = materializeAgentPlan("length", [createRootNode(), node]);
-      await assert.rejects(new WorkflowExecutor(runtime, "fixture", "fixture").run(plan, task), /PROVIDER_OUTPUT_TRUNCATED|max_tokens/);
+      const result = await new WorkflowExecutor(runtime, "fixture", "fixture").run(plan, task);
+      assert.equal(result.answer, "2");
     }
   } finally { await runtime.close(); }
 });

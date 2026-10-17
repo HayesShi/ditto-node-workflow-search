@@ -115,7 +115,10 @@ test("concurrent workflow diagnostics retain missing usage, hidden retries and f
     assert.equal(multi.unknownUsageAttempts, 1, "an unknown intermediate call cannot disappear behind a known final response");
     assert.equal(multi.usageKnown, false);
     assert.equal(multi.totalTokens, 7);
-    for (const prompt of ["failure", "length"]) {
+    const limited = await run("length");
+    assert.equal(limited.answer, "answer");
+    assert.equal(limited.totalTokens, 7);
+    for (const prompt of ["failure"]) {
       await assert.rejects(run(prompt), (error: unknown) => {
         assert.ok(error instanceof WorkflowExecutionError);
         assert.equal(error.usageKnown, prompt === "length");

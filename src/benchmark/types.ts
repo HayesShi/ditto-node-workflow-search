@@ -54,7 +54,8 @@ export interface BenchmarkAdapter {
 }
 
 export interface PrivateScorer {
-  score(taskId: string, prediction: string): Promise<ScoreEvidence>;
+  score(taskId: string, prediction: string, prior?: CaseResult): Promise<ScoreEvidence>;
+  recoveryData?(taskId: string): unknown;
   expectedLabel(taskId: string): string;
 }
 

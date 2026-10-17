@@ -32,6 +32,8 @@ export interface SearchCallbacks {
 }
 
 export interface SearchResumeState {
+  readonly organizationPlans?: Readonly<Record<string, AgentPlanSpec>>;
+  readonly pendingOrganization?: { readonly plan: AgentPlanSpec; readonly parentId: string | null };
   readonly schemaVersion: 1;
   readonly nodes: readonly SearchTreeNode[];
   readonly experiences: readonly SearchExperience[];

@@ -106,7 +106,7 @@ class ProviderBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item["phase"] for item in records], ["request", "error", "request", "response"])
         self.assertEqual(reply["diagnostics"], {"requestId": 1, "attempts": 2, "failedAttempts": 1,
                          "unknownUsageAttempts": 1, "usageKnown": False,
-                         "inputTokens": 3, "outputTokens": 4, "totalTokens": 7})
+                         "inputTokens": 3, "outputTokens": 4, "totalTokens": 7, "finishReason": "stop"})
 
     async def test_rate_limit_backoff_is_ten_twenty_seconds_and_at_most_three_attempts(self):
         fake = FakeTime()

@@ -70,7 +70,9 @@ async function evaluateOne(
   const history = prior ? { previousResults: Object.freeze([prior]) } : {};
   let run: AgentRunResult;
   try {
-    run = await retryWorkflow(() => runner(task), retryAttempts, attempts);
+    run = prior?.failureKind === "judge" && prior.method === "judge-error"
+      ? { answer: prior.prediction, executedNodeIds: [], executedGraphIds: [], inputTokens: 0, outputTokens: 0, totalTokens: 0, usageKnown: prior.usageKnown !== false }
+      : await retryWorkflow(() => runner(task), retryAttempts, attempts);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return Object.freeze({
@@ -96,7 +98,7 @@ async function evaluateOne(
   const providerUsage = aggregateUsage(run, attempts, prior);
   let evidence;
   try {
-    evidence = await scorer.score(task.id, run.answer);
+    evidence = await scorer.score(task.id, run.answer, prior);
     if (!Number.isFinite(evidence.score) || evidence.score < 0 || evidence.score > 1) {
       throw new Error(`Scorer returned invalid score: ${evidence.score}`);
     }
@@ -106,6 +108,7 @@ async function evaluateOne(
       ...history,
       score: 0, expected: expectedLabel(scorer, task.id), prediction: run.answer,
       normalizedExpected: "", normalizedPrediction: "", method: "judge-error",
+      judgeRecovery: scorer.recoveryData?.(task.id) ?? prior?.judgeRecovery,
       failureKind: "judge", error: error instanceof Error ? error.message : String(error),
       attempts: Object.freeze(attempts), usageKnown: run.usageKnown !== false && prior?.usageKnown !== false && attempts.every(value => value.usageKnown),
       ...providerUsage,

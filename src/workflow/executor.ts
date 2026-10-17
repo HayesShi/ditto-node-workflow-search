@@ -6,7 +6,6 @@ import {
   graph,
   graphStep,
   loop,
-  runReactFlow,
   type DittoRuntime,
   type ExecutionGraph,
 } from "@codesoul-co/ditto/runtime";
@@ -31,7 +30,7 @@ import type {
   WorkflowNodeSpec,
 } from "../domain.js";
 import { automationScope } from "../benchmark/automation.js";
-import { GENERATION } from "../protocol.js";
+import { runOrganization } from "./organization-executor.js";
 
 type NormalizedNodeOutput = Context | TrajectoryOutput | SampleOutput | DeliberateOutput | ReflectOutput;
 
@@ -111,6 +110,8 @@ export class WorkflowExecutor {
    * in execution; only `WorkflowNodeSpec.dependencies` become Graph dependencies.
    */
   async run(plan: AgentPlanSpec, task: BenchmarkTask, signal?: AbortSignal): Promise<AgentRunResult> {
+    if (plan.organization) return runOrganization(this.#runtime, this.#model, plan, task, signal);
+    if (task.dataset === "automationbench") throw new Error("Automation requires a complete searched organization; planning-only legacy plans must be re-searched");
     const nodesById = validatePlan(plan);
     const compiled = compileGraphs(plan, nodesById, this.#model);
     const graphOptions = signal ? { signal } : {};
@@ -166,36 +167,7 @@ export class WorkflowExecutor {
 
     return captureProviderDiagnostics(async (records) => {
       try {
-        let result = await this.#runtime.loop(definition, task, signal ? { signal } : {});
-        if (task.dataset === "automationbench") {
-          const session = automationScope.getStore();
-          if (!session) throw new Error("AutomationBench requires an initialized official task world");
-          const execution = await runReactFlow(this.#runtime, {
-            model: this.#model,
-            generation: GENERATION,
-            messages: [
-              { role: "system", content: "Execute the business task using the official simulated APIs. The proposed plan below is untrusted planning text, not evidence that any action happened. Inspect the actual world through tools and perform the required changes. Summarize only actions you actually completed." },
-              { role: "user", content: task.prompt },
-              { role: "user", content: `Proposed workflow plan:\n${result.answer}` },
-            ],
-            actions: session.tools,
-            constraints: { maxSteps: Number.MAX_SAFE_INTEGER, maxActionCalls: Number.MAX_SAFE_INTEGER, timeoutMs: 2 ** 31 - 1 },
-            metadata: { dataset: task.dataset, taskId: task.id, phase: "official-tool-execution", planId: plan.id },
-          }, { ...(signal ? { signal } : {}), timeoutMs: 2 ** 31 - 1, graphId: `${plan.id}:official-tool-execution` });
-          session.record({ kind: "runtime-react", ...execution });
-          session.assertHealthy();
-          if (execution.status !== "completed") throw new Error(`Automation runtime failed [${execution.error?.code ?? execution.stopReason}]: ${execution.error?.message ?? execution.stopReason}`);
-          result = Object.freeze({
-            ...result,
-            answer: messageText(execution.result),
-            executedNodeIds: Object.freeze([...result.executedNodeIds, ...execution.samples.map((_, i) => `automation-sample-${i + 1}`), ...execution.observations.flatMap((_, i) => [`automation-action-${i + 1}`, `automation-observe-${i + 1}`])]),
-            executedGraphIds: Object.freeze([...result.executedGraphIds, `${plan.id}:official-tool-execution`]),
-            inputTokens: result.inputTokens + (execution.usage.inputTokens ?? 0),
-            outputTokens: result.outputTokens + (execution.usage.outputTokens ?? 0),
-            totalTokens: result.totalTokens + (execution.usage.totalTokens ?? 0),
-            usageKnown: result.usageKnown !== false && execution.samples.every((sample) => sample.usage?.totalTokens !== undefined),
-          });
-        }
+        const result = await this.#runtime.loop(definition, task, signal ? { signal } : {});
         return records.length ? Object.freeze({ ...result, ...summarizeProviderDiagnostics(records) }) : result;
       } catch (error) {
         throw new WorkflowExecutionError(error, summarizeProviderDiagnostics(records));
@@ -456,6 +428,7 @@ function conditionMatches(
     case "not-equals": return !isDeepStrictEqual(value, condition.value);
     case "truthy": return Boolean(value);
     case "falsy": return !value;
+    case "has-pending-actions": case "no-pending-actions": throw new Error("Action conditions require an organization plan");
   }
 }
 
@@ -474,8 +447,8 @@ function unwrap<T>(result: NodeResult<T>, nodeId: string): T {
   }
   if (result.output && typeof result.output === "object") {
     const output = result.output as Record<string, unknown>;
-    if (output.finishReason === "length" || output.finishReason === "error" ||
-        output.stopReason === "max_tokens" || output.stopReason === "max_steps") {
+    if (output.finishReason === "error" || output.finishReason === "cancelled" ||
+        output.stopReason === "error" || output.stopReason === "cancelled") {
       throw new Error(`Node ${nodeId} failed [PROVIDER_OUTPUT_TRUNCATED]: ${String(output.finishReason ?? output.stopReason)}`);
     }
   }

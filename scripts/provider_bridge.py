@@ -80,7 +80,7 @@ def request_body(body):
              if key not in {"top_p", "reasoning_effort", "max_tokens", "max_completion_tokens",
                             "temperature", "n", "response_format", "stream", "stream_options"}}
     result.update(temperature=0, max_tokens=393216, n=1,
-                  response_format={"type": "text"}, stream=True,
+                  response_format=body.get("response_format", {"type": "text"}), stream=True,
                   stream_options={"include_usage": True})
     result["extra_body"] = {**extra, "thinking": {"type": "disabled"}}
     return result
@@ -206,6 +206,7 @@ async def complete(client, request, timeout_ms, emit=log, attempts=3, cooldown=N
                 heartbeat.cancel()
                 await asyncio.gather(heartbeat, return_exceptions=True)
             account(raw, False)
+            diagnostics["finishReason"] = raw["choices"][0]["finish_reason"]
             emit({"phase": "response", "id": request["id"], "attempt": attempt,
                   "elapsedMs": round((time.monotonic() - started) * 1000),
                   "model": raw.get("model"), "usage": raw.get("usage"),
@@ -283,8 +284,9 @@ async def main():
                 break
             request = json.loads(line)
             if request.get("cancel"):
-                if request["id"] in tasks:
-                    tasks[request["id"]].cancel()
+                request_id = request.get("id", request["cancel"])
+                if request_id in tasks:
+                    tasks[request_id].cancel()
                 continue
             task = asyncio.create_task(invoke(request))
             tasks[request["id"]] = task

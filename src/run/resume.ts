@@ -36,6 +36,7 @@ export async function loadHistoricalResume(directory: string, round: number, cod
       ? { ...node, evaluation: await readEvaluation(directory, node.id, node.evaluation.score) } : node));
     return { manifest, state: { ...saved, nodes } };
   }
+  if (saved?.organizationPlans) throw new Error("Organization resume requires its latest completed boundary; historical prefix reconstruction is not supported");
   const settings = manifest.search as { seed: number; topK: number; maximumDepth: number };
   const events = await jsonLines<Record<string, unknown>>(join(directory, "search-events.jsonl"));
   const cutoff = events.findIndex(event => event.type === "convergence-checked" && event.round === round);

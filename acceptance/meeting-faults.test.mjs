@@ -50,7 +50,7 @@ for(const scenario of [
   assert.equal(proposals,0);assert.deepEqual(experiences,[{experience:null,visits:0}]);
   const recoveredCalls=[];
   const recovered=await evaluateTasks(tasks,scorer,async task=>{recoveredCalls.push(task.id);return answer();},{priorCases:invalid.results,retryAttempts:2});
-  assert.deepEqual(recoveredCalls,['fault']);assert.equal(recovered.valid,true);assert.equal(recovered.examples,3);
+  assert.deepEqual(recoveredCalls,scenario.kind==='judge'?[]:['fault']);assert.equal(recovered.valid,true);assert.equal(recovered.examples,3);
   assert.equal(recovered.results.length,3);assert.equal(recovered.validRuns,3);assert.equal(recovered.failedRuns,0);
   assert.equal(recovered.wrongRuns,1);assert.equal(recovered.score,2/3);
   assert.equal(recovered.results.find(x=>x.caseId==='wrong#1').score,0);

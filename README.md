@@ -6,6 +6,16 @@
 
 MATH 与 AutomationBench 的当前工程验证协议、环境准备、故障处理及保留 test 的运行命令见 [Engineering validation](docs/engineering-validation.md)。下文未显式覆盖的历史批量脚本不属于本轮运行入口。
 
+## 当前 MATH 与 Automation 入口
+
+已按负责人确认改为：**搜索完整节点组织，固定节点与工具能力**。搜索可以改变节点分组、依赖、反馈、分支和循环，不再只优化规划后接固定执行器。两者使用 `src/cli.ts` 的 search/test 入口，详见 [本轮修改与运行说明](docs/topology-fixes-20261018.zh-CN.md)。
+
+完整流程保存在 `best/plan.json`；搜索顶点标记实际节点，父子记录表示候选修改来源。搜索与 Test 校验同一源码、编译产物、依赖、评分环境及协议。旧版结果不能直接作为本版搜索提升证据。
+
+## 历史追加路径模式（其余四个数据集）
+
+以下根到叶追加路径说明适用于原入口，不能用于重建新版 MATH/Automation 流程。
+
 ## 核心定义
 
 负责人提出的关系在代码中被严格拆成三层：

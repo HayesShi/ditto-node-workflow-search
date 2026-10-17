@@ -47,7 +47,7 @@ async function fixture(scenario, operation) {
     response.end('data: [DONE]\n\n');
   });
   server.listen(0,'127.0.0.1');await once(server,'listening');
-  const experiment=createExperimentRuntime({baseUrl:`http://127.0.0.1:${server.address().port}`,model:'fixture',apiKey:'local-fixture',concurrency:1,timeoutMs:scenario.name==='timeout'?500:10000});
+  const experiment=createExperimentRuntime({baseUrl:`http://127.0.0.1:${server.address().port}`,model:'fixture',apiKey:'local-fixture',concurrency:1,timeoutMs:scenario.name==='timeout'?2000:10000});
   const executor=new WorkflowExecutor(experiment.runtime,experiment.providerName,experiment.model);
   const native=new MFlowMathScorer(new Map(tasks.map(t=>[t.id,'2'])));
   const scored=[];
@@ -96,7 +96,7 @@ for(const scenario of scenarios)test(`local HTTP -> Python -> Ditto -> native sc
     }
     recover();const recoveredCalls=[];
     const recovered=await evaluateTasks(tasks,scorer,t=>{recoveredCalls.push(t.id);return executor.run(plan,t);},{priorCases:invalid.results,retryAttempts:2});
-    assert.deepEqual(recoveredCalls,['fault']);assert.equal(recovered.valid,true);assert.equal(recovered.score,2/3);
+    assert.deepEqual(recoveredCalls,scenario.kind==='judge'?[]:['fault']);assert.equal(recovered.valid,true);assert.equal(recovered.score,2/3);
     assert.equal(counts.get('correct'),1);assert.equal(counts.get('wrong'),1);
     assert.equal(recovered.results.find(x=>x.caseId==='wrong#1').score,0);
     assert.equal(recovered.results.find(x=>x.caseId==='fault#1').previousResults[0].failureKind,scenario.kind);

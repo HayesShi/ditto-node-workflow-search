@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import { pythonExecutionIdentity } from "./run/python-identity.js";
+import { currentExecutionIdentity, assertExecutionIdentity } from "./run/execution-identity.js";
+import { OrganizationProposer, OrganizationWorkflowSearch } from "./search/organization-search.js";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { DockerPythonJudge, loadBenchmark, sha256File, automationIdentity } from "./benchmark/index.js";
@@ -18,7 +23,7 @@ async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2));
   const provider = Object.freeze({ ...loadProviderSettings(),
     concurrency: options.command === "search" ? options.searchProviderConcurrency : options.testProviderConcurrency });
-  const experiment = createExperimentRuntime(provider);
+  const experiment = createExperimentRuntime(provider, { profile: options.dataset === "automationbench" ? "automationbench" : "math" });
   const executor = new WorkflowExecutor(experiment.runtime, experiment.providerName, experiment.model);
   try {
     if (options.command === "search") await search(options, provider, experiment, executor);
@@ -34,7 +39,8 @@ async function search(
   experiment: ExperimentRuntime,
   executor: WorkflowExecutor,
 ): Promise<void> {
-  const codeSha256 = await evaluationCodeHash(process.cwd());
+  const executionIdentity = { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs };
+  const codeSha256 = executionIdentity.source;
   const store = await RunStore.create(options.outputRoot, options.dataset);
   const loaded = await openBenchmark(options, "validate", store.directory);
   const automation = options.dataset === "automationbench" ? await automationIdentity() : undefined;
@@ -42,6 +48,7 @@ async function search(
   const restored = options.resumeDir ? await loadHistoricalResume(options.resumeDir, options.resumeRound!, codeSha256) : undefined;
   if (restored) {
     const prior = restored.manifest;
+    assertExecutionIdentity(prior.executionIdentity, executionIdentity);
     if (automation && JSON.stringify(prior.automation) !== JSON.stringify(automation)) throw new Error("Resume AutomationBench source/environment/scorer identity differs");
     const priorSearch = prior.search as Record<string, unknown>;
     const expected = { rounds: options.rounds, repeats: options.repeats, testRepeats: options.testRepeats,
@@ -54,7 +61,10 @@ async function search(
       || Object.entries(expected).some(([key, value]) => priorSearch[key] !== value)) throw new Error("Resume model/data/search settings differ from the frozen experiment");
   }
   const manifest: Record<string, unknown> = {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    executionIdentity,
+    frozenTestDataSha256: await sha256File(benchmarkPath(options, "test")),
+    testSettings: { repeats: options.testRepeats, limit: options.testLimit, seed: options.seed + 1 },
     status: "searching",
     createdAt: new Date().toISOString(),
     dataset: options.dataset,
@@ -98,6 +108,7 @@ async function search(
   console.log(JSON.stringify({ phase: "search-start", dataset: options.dataset, examples: loaded.tasks.length, runDirectory: store.directory }));
 
   const evaluate = async (plan: Parameters<WorkflowExecutor["run"]>[0]): Promise<EvaluationSummary> => {
+    assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
     // Publish locally before validation. A separate process consumes these
     // files; no test score or test completion enters this search process.
     await store.saveCheckpoint(plan);
@@ -151,12 +162,13 @@ async function search(
         },
       },
     );
+    assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
     await recovery.finish(summary.valid === true);
     return summary;
   };
   const proposer = new NextNodeProposer(experiment.runtime, experiment.providerName, experiment.model);
   let checkpointScore = -Infinity;
-  const optimizer = new NodeWorkflowSearch({
+  const searchOptions = {
     evaluate,
     proposer,
     rounds: options.rounds,
@@ -168,7 +180,7 @@ async function search(
     initialInstruction: initialInstruction(options.dataset),
     ...(restored ? { resume: restored.state } : {}),
     callbacks: {
-      async node(node, experience, plan) {
+      async node(node: import("./domain.js").SearchTreeNode, experience: import("./domain.js").SearchExperience | null, plan?: import("./domain.js").AgentPlanSpec) {
         await store.saveSearchNode(node);
         if (node.evaluation) await store.saveEvaluation(node.id, node.evaluation);
         if (node.evaluation && plan) await store.saveCheckpoint(plan);
@@ -180,15 +192,18 @@ async function search(
             stoppedBecause: "search-in-progress", exploredNodes: 0 });
         }
       },
-      async event(value) {
+      async event(value: Readonly<Record<string, unknown>>) {
         await store.appendEvent({ at: new Date().toISOString(), ...value });
         if (["search-resumed", "baseline-evaluated", "parent-selected", "path-evaluated", "proposal-failed", "evaluation-failed"].includes(String(value.type))) {
           console.log(JSON.stringify({ phase: "search-progress", ...value }));
         }
       },
-      async state(value) { await store.saveResumeState(value); },
+      async state(value: import("./search/optimizer.js").SearchResumeState) { await store.saveResumeState(value); },
     },
-  });
+  };
+  const optimizer = options.dataset === "math" || options.dataset === "automationbench"
+    ? new OrganizationWorkflowSearch({ ...searchOptions, dataset: options.dataset, proposer: new OrganizationProposer(experiment.runtime, { provider: experiment.providerName, model: experiment.model }) })
+    : new NodeWorkflowSearch(searchOptions);
 
   try {
     const result = await optimizer.run();
@@ -198,12 +213,13 @@ async function search(
     await store.saveTreeSnapshot(result.nodes);
     await store.saveBest({
       leaf: result.bestLeaf,
-      nodePath: result.bestPath.map((entry) => entry.node),
+      nodePath: result.bestPlan.nodes,
       plan: result.bestPlan,
       validation,
       stoppedBecause: result.stoppedBecause,
       exploredNodes: result.nodes.length,
     });
+    assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
     Object.assign(manifest, {
       status: "frozen",
       frozenAt: new Date().toISOString(),
@@ -211,7 +227,8 @@ async function search(
         leafId: result.bestLeaf.id,
         planId: result.bestPlan.id,
         pathHash: result.bestLeaf.pathHash,
-        nodeCount: result.bestPath.length,
+        planSha256: planHash(result.bestPlan),
+        nodeCount: result.bestPlan.nodes.length,
         validationScore: validation.score,
       },
     });
@@ -221,7 +238,7 @@ async function search(
       dataset: options.dataset,
       runDirectory: store.directory,
       frozenLeaf: result.bestLeaf.id,
-      nodeCount: result.bestPath.length,
+      nodeCount: result.bestPlan.nodes.length,
       validationScore: validation.score,
       next: `test --dataset ${options.dataset} --run-dir ${store.directory}`,
     }));
@@ -244,6 +261,9 @@ async function testFrozen(
   if (!options.runDir) throw new Error("test requires --run-dir");
   const store = await RunStore.open(options.runDir);
   const manifest = await store.readManifest();
+  const executionIdentity = { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs };
+  assertExecutionIdentity(manifest.executionIdentity, executionIdentity);
+  if (!isDeepStrictEqual(manifest.generation, GENERATION) || manifest.dittoVersion !== executionIdentity.dittoVersion || manifest.metricProfile !== metricProfile(options.dataset)) throw new Error("Frozen generation/scorer/dependency differs");
   if (options.dataset === "automationbench" && JSON.stringify(manifest.automation) !== JSON.stringify(await automationIdentity())) throw new Error("Frozen AutomationBench source/environment/scorer identity differs");
   if (manifest.model !== provider.model || manifest.endpoint !== provider.baseUrl
     || JSON.stringify(manifest.protocol) !== JSON.stringify(PROTOCOL)) {
@@ -253,12 +273,22 @@ async function testFrozen(
   if (manifest.dataset !== options.dataset) {
     throw new Error(`Frozen run belongs to ${String(manifest.dataset)}, not ${options.dataset}`);
   }
-  if (manifest.status !== "frozen" && manifest.status !== "complete") {
+  if (!["frozen", "test-running", "test-failed"].includes(String(manifest.status))) {
     throw new Error(`Frozen run is not ready for test: status=${String(manifest.status)}`);
   }
+  if (!isDeepStrictEqual(manifest.testSettings, { repeats: options.testRepeats, limit: options.testLimit, seed: options.seed + 1 })) throw new Error("Test repeats/selection differ from the frozen protocol");
   const plan = await store.readBestPlan();
+  if ((manifest.best as { planSha256?: string })?.planSha256 !== planHash(plan)) throw new Error("Frozen workflow changed after search");
+  const frozenTestHash = await sha256File(benchmarkPath(options, "test"));
+  if (manifest.frozenTestDataSha256 !== frozenTestHash) throw new Error("Test split changed after search");
   const loaded = await openBenchmark(options, "test", store.directory);
   const dataPath = benchmarkPath(options, "test");
+  const recovery = await CaseRecovery.open(join(store.directory, "test", "recovery"), {
+    stage: "frozen-test", executionIdentity, plan, model: provider.model, endpoint: provider.baseUrl,
+    testDataHash: frozenTestHash, selectedIds: loaded.tasks.map(task => task.id), repeats: options.testRepeats,
+  });
+  Object.assign(manifest, { status: "test-running", execution: { executionIdentity, planSha256: planHash(plan) } });
+  await store.writeManifest(manifest);
   console.log(JSON.stringify({ phase: "test-start", dataset: options.dataset, examples: loaded.tasks.length, frozenPlan: plan.id }));
   let scoreSum = 0;
   let scoringValid = true;
@@ -268,10 +298,12 @@ async function testFrozen(
       repeats: options.testRepeats,
       concurrency: options.evaluationConcurrency,
       retryAttempts: 5,
+      priorCases: recovery.priorCases,
       async onCase(progress) {
         scoreSum += progress.result.score;
         scoringValid &&= progress.result.valid === true;
         const runningScore = displayScore(scoringValid, scoreSum / progress.completed);
+        await recovery.record(progress.result);
         await store.saveLiveCase("test", progress.result);
         console.log(JSON.stringify({
           phase: "test-progress",
@@ -289,9 +321,11 @@ async function testFrozen(
       },
     },
   );
+  assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
+  await recovery.finish(summary.valid === true);
   await store.saveTest(summary);
   Object.assign(manifest, {
-    status: summary.valid === true ? "complete" : "failed",
+    status: summary.valid === true ? "complete" : "test-failed",
     completedAt: new Date().toISOString(),
     test: {
       file: basename(dataPath),
@@ -303,7 +337,7 @@ async function testFrozen(
       repeats: summary.repeats,
       standardDeviation: summary.standardDeviation,
     },
-    execution: { model: provider.model, endpoint: provider.baseUrl },
+    execution: { model: provider.model, endpoint: provider.baseUrl, executionIdentity, planSha256: planHash(plan) },
   });
   await store.writeManifest(manifest);
   console.log(JSON.stringify({ phase: summary.valid === true ? "test-complete" : "test-invalid", dataset: options.dataset,
@@ -359,7 +393,7 @@ function taskGoal(dataset: DatasetName): string {
     case "mbpp": return "Search a compact Ditto Node path that produces correct MBPP Python functions under private tests.";
     case "gsm8k": return "Search a compact Ditto Node path that solves GSM8K word problems with correct final numbers.";
     case "math": return "Search a compact Ditto Node path that maximizes mathematical answer accuracy on competition problems.";
-    case "automationbench": return "Search a compact planning workflow for business automation, followed by the same native Runtime action stage for every candidate. Optimize official final-world task completion.";
+    case "automationbench": return "Search the complete node organization including reasoning, tool dispatch, observation, context feedback and termination. Tool capabilities and grading are fixed.";
   }
 }
 
@@ -376,6 +410,8 @@ function initialInstruction(dataset: DatasetName): string {
     case "automationbench": return "Prepare a concrete tool-use plan for the following task. Planning does not perform actions; an execution stage will use the official APIs afterward.\n\n";
   }
 }
+
+function planHash(plan: unknown): string { return createHash("sha256").update(JSON.stringify(plan)).digest("hex"); }
 
 async function dittoVersion(): Promise<string> {
   try {
