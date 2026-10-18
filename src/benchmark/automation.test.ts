@@ -97,6 +97,80 @@ test('the observed scalar Trello body can be corrected without poisoning its off
   }finally{await bridge.close();}
 });
 
+test("only discovered matching endpoint path parameters become repairable query observations", async () => {
+  const calls: Record<string, unknown>[] = [];
+  const publicResult = JSON.stringify({ results: [{ method: "GET", url: "https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}",
+    parameters: { spreadsheetId: { type: "string", location: "path" }, includeGridData: { type: "boolean", location: "query" } } },
+    { method: "GET", url: "https://sheets.googleapis.com/v4/spreadsheets/current", parameters: { spreadsheetId: { type: "string", location: "query" } } }] });
+  const bridge = { assertHealthy() {}, async request(value: Record<string, unknown>) {
+    calls.push(value); return { content: value.name === "api_search" ? publicResult : "official response" };
+  } } as unknown as AutomationBridge;
+  const session = new OfficialAutomationSession(bridge, "fixture", "fixture", "a".repeat(64), []);
+  const args = { method: "GET", url: "https://sheets.googleapis.com/v4/spreadsheets/ss_csat", params: '{"spreadsheetId":"ss_csat"}', body: "null" };
+  assert.equal((await session.call("api_fetch", args)).content, "official response", "undiscovered endpoints remain official calls");
+  assert.equal((await session.call("api_search", { query: "sheets spreadsheets get", top_k: 10 })).content, publicResult, "discovery output is unchanged");
+  const dispatched = calls.length;
+  for (const value of ["ss_csat", "different", null, 0]) {
+    const response = await session.call("api_fetch", { ...args, params: JSON.stringify({ spreadsheetId: value }) });
+    assert.match(response.content, /INVALID_TOOL_ARGUMENTS/);
+    assert.match(response.content, /path parameter\(s\): spreadsheetId/);
+    session.assertHealthy();
+  }
+  assert.equal(calls.length, dispatched, "duplicate path fields never reach the official router");
+  assert.deepEqual(session.trace[2]?.arguments, args, "the original arguments remain available, without silently dropping duplicates");
+  for (const valid of [
+    { ...args, params: '{"includeGridData":true}' },
+    { ...args, params: '{"spreadsheetIdentifier":"ss_csat"}' },
+    { ...args, params: "{}", body: '{"spreadsheetId":"ss_csat"}' },
+    { ...args, method: "POST" },
+    { ...args, url: args.url + "/values/Sheet1!A1:B2" },
+    { ...args, url: "https://sheetsXgoogleapis.com/v4/spreadsheets/ss_csat" },
+    { ...args, method: "POST", url: "https://sheets.googleapis.com/v4/spreadsheets/ss_csat:batchUpdate" },
+    { ...args, url: "https://sheets.googleapis.com/v4/spreadsheets/current" },
+    { ...args, params: "{invalid-json" },
+  ]) assert.equal((await session.call("api_fetch", valid)).content, "official response", "only the exact discovered method and URL pattern may reject path/query collisions");
+  const other = new OfficialAutomationSession(bridge, "another-world", "fixture", "a".repeat(64), []);
+  assert.equal((await other.call("api_fetch", args)).content, "official response", "public endpoint observations stay in their own world");
+});
+
+test("discovered endpoints still expose real internal TypeErrors for valid arguments", async () => {
+  const session = new OfficialAutomationSession({ assertHealthy() {}, async request(value: Record<string, unknown>) {
+    if (value.name === "api_search") return { content: JSON.stringify({ results: [{ method: "GET", url: "https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}", parameters: { spreadsheetId: { location: "path" } } }] }) };
+    throw new TypeError("official internal TypeError unrelated to argument binding");
+  } } as unknown as AutomationBridge, "fixture", "fixture", "a".repeat(64), []);
+  await session.call("api_search", { query: "spreadsheets get" });
+  await assert.rejects(session.call("api_fetch", { method: "GET", url: "https://sheets.googleapis.com/v4/spreadsheets/ss_csat", params: "{}", body: null }), /official internal TypeError/);
+  assert.throws(() => session.assertHealthy(), /official internal TypeError/);
+  assert.equal(session.trace.at(-1)?.type, "environment-error");
+});
+
+test("the observed Sheets path/query duplication is rejected and corrected in the same official world", { skip: !native }, async () => {
+  const bridge = await AutomationBridge.open();
+  try {
+    const session = await bridge.start("simple.csat_sheets_slack_alert");
+    try {
+      const args = { method: "GET", url: "https://sheets.googleapis.com/v4/spreadsheets/ss_csat", params: '{"spreadsheetId":"ss_csat"}', body: "null" };
+      const before = await session.snapshot();
+      const initialScore = (await session.grade(before)).score;
+      // Reproduce the frozen official route failure directly, without the adapter
+      // marking its session failed; verify this pre-binding error has no effects.
+      await assert.rejects(bridge.request({ op: "call", session: session.id, name: "api_fetch", arguments: args }), /multiple values for argument 'spreadsheetId'/);
+      assert.deepEqual(await session.snapshot(), before);
+      const discovery = JSON.parse((await session.call("api_search", { query: "sheets spreadsheets get metadata", top_k: 10 })).content) as { results: { id: string }[] };
+      assert.ok(discovery.results.some((endpoint) => endpoint.id === "sheets.spreadsheets.get"));
+      assert.match((await session.call("api_fetch", args)).content, /INVALID_TOOL_ARGUMENTS/);
+      session.assertHealthy();
+      assert.deepEqual(await session.snapshot(), before, "rejected duplicate arguments do not mutate the world");
+      const corrected = JSON.parse((await session.call("api_fetch", { ...args, params: "{}" })).content) as { spreadsheetId: string };
+      assert.equal(corrected.spreadsheetId, "ss_csat");
+      session.assertHealthy();
+      assert.deepEqual(await session.snapshot(), before, "the corrected official GET is read-only");
+      assert.equal((await session.grade(await session.snapshot())).score, initialScore, "the same uncompleted world keeps its unchanged official grade");
+      assert.equal(initialScore, 0);
+    } finally { await session.close(); }
+  } finally { await bridge.close(); }
+});
+
 test("the observed Trello duplicate field mistake can be corrected in the same official world", { skip: !native }, async () => {
   const bridge = await AutomationBridge.open();
   try {

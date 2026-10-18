@@ -141,13 +141,16 @@ export class AutomationBridge {
 export class OfficialAutomationSession implements AutomationSession {
   readonly trace: Readonly<Record<string, unknown>>[] = [];
   #failure: Error | undefined;
+  // Only endpoint contracts already returned by this world's public api_search
+  // may reject a misplaced path parameter. Unknown endpoints remain official calls.
+  readonly #publicEndpoints = new Map<string, PublicEndpoint>();
   constructor(readonly bridge: AutomationBridge, readonly id: string, readonly taskId: string, readonly contract: string, readonly tools: ActionDescriptor[]) {}
   record(entry: Readonly<Record<string, unknown>>): void { this.trace.push(Object.freeze({ at: new Date().toISOString(), ...structuredClone(entry) })); }
   assertHealthy(): void { if (this.#failure) throw this.#failure; this.bridge.assertHealthy(); }
 
   async call(name: string, args: JsonObject): Promise<{ content: string }> {
     this.assertHealthy();
-    const argumentError = validateToolArguments(name, args);
+    const argumentError = validateToolArguments(name, args) ?? this.pathArgumentError(name, args);
     if (argumentError) {
       const result = { content: JSON.stringify({ error: { code: "INVALID_TOOL_ARGUMENTS", message: argumentError } }) };
       this.record({ type: "tool-call", name, arguments: args, result, argumentError: true });
@@ -156,6 +159,9 @@ export class OfficialAutomationSession implements AutomationSession {
     try {
       const result = await this.bridge.request<{ content: unknown }>({ op: "call", session: this.id, name, arguments: args });
       const response = { content: typeof result.content === "string" ? result.content : JSON.stringify(result.content) };
+      if (name === "api_search") for (const endpoint of publicEndpoints(response.content)) {
+        this.#publicEndpoints.set(`${endpoint.method} ${endpoint.url}`, endpoint);
+      }
       this.record({ type: "tool-call", name, arguments: args, result: response });
       return response;
     } catch (error) {
@@ -163,6 +169,23 @@ export class OfficialAutomationSession implements AutomationSession {
       this.record({ type: "environment-error", name, arguments: args, error: this.#failure.message });
       throw this.#failure;
     }
+  }
+
+  private pathArgumentError(name: string, args: JsonObject): string | undefined {
+    if (name !== "api_fetch" || typeof args.method !== "string" || typeof args.url !== "string" || typeof args.params !== "string") return undefined;
+    let params: unknown;
+    try { params = JSON.parse(args.params); } catch { return undefined; }
+    if (!params || typeof params !== "object" || Array.isArray(params)) return undefined;
+    const method = args.method.toUpperCase(), url = args.url;
+    const matches = [...this.#publicEndpoints.values()].filter((endpoint) => endpoint.method === method && endpoint.matches.test(url))
+      .sort((left, right) => right.literalLength - left.literalLength);
+    const endpoint = matches[0];
+    // Prefer an explicitly discovered literal/specialized endpoint to a generic
+    // placeholder. Ambiguous equally specific contracts stay official calls.
+    if (!endpoint || matches[1]?.literalLength === endpoint.literalLength) return undefined;
+    const duplicate = endpoint.pathParameters.filter((key) => Object.hasOwn(params, key));
+    if (duplicate.length) return `api_fetch query params repeat path parameter(s): ${duplicate.join(", ")}. These fields belong only in the URL path according to the api_search contract; correct the request before retrying.`;
+    return undefined;
   }
 
   async snapshot(): Promise<AutomationSnapshot> {
@@ -181,6 +204,32 @@ export class OfficialAutomationSession implements AutomationSession {
     try { this.bridge.assertHealthy(); } catch { return; }
     await this.bridge.request({ op: "close", session: this.id });
   }
+}
+
+interface PublicEndpoint { readonly method: string; readonly url: string; readonly matches: RegExp; readonly literalLength: number; readonly pathParameters: readonly string[] }
+
+/** Use only explicit public location:path declarations, never infer from errors. */
+function publicEndpoints(content: string): PublicEndpoint[] {
+  let value: unknown;
+  try { value = JSON.parse(content); } catch { return []; }
+  if (!value || typeof value !== "object" || !Array.isArray((value as { results?: unknown }).results)) return [];
+  const endpoints: PublicEndpoint[] = [];
+  for (const entry of (value as { results: unknown[] }).results) {
+    if (!entry || typeof entry !== "object") continue;
+    const endpoint = entry as { method?: unknown; url?: unknown; parameters?: unknown };
+    if (typeof endpoint.method !== "string" || typeof endpoint.url !== "string" || !endpoint.parameters || typeof endpoint.parameters !== "object" || Array.isArray(endpoint.parameters)) continue;
+    const url = endpoint.url;
+    const pathParameters = Object.entries(endpoint.parameters).filter(([key, spec]) => spec && typeof spec === "object"
+      && (spec as { location?: unknown }).location === "path" && url.includes(`{${key}}`)).map(([key]) => key);
+    // Escape every literal character; placeholders match exactly one URL segment.
+    // Anchoring prevents a spreadsheet GET contract matching values/batch endpoints.
+    const parts = url.split(/(\{[A-Za-z_][A-Za-z0-9_]*\})/);
+    const isPlaceholder = (part: string) => /^\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(part);
+    const pattern = parts.map((part) => isPlaceholder(part)
+      ? "[^/?#]+" : part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("");
+    endpoints.push({ method: endpoint.method.toUpperCase(), url, matches: new RegExp(`^${pattern}$`), literalLength: parts.filter((part) => !isPlaceholder(part)).join("").length, pathParameters });
+  }
+  return endpoints;
 }
 
 function validateToolArguments(name: string, args: JsonObject): string | undefined {
