@@ -16,6 +16,7 @@ import { withBaselineRepetitionGuidance } from "./repetition-guidance.js";
 import { withReflectionFormatRepair } from "./reflection-format.js";
 import { appendFile } from "node:fs/promises";
 import { withModelNode } from './model-failure.js';
+import { withMathOutputContract } from './math-output-contract.js';
 
 /** Match the published structured Node contract on the actual wire request. */
 export function withStructuredNodeFormat(provider: ModelProvider): ModelProvider {
@@ -66,7 +67,7 @@ export function createExperimentRuntime(settings: ProviderSettings, options: Exp
     maxTokensField: "max_tokens", sandbox, fetch: transport!.fetch,
     providerOptions: { thinking: { type: "disabled" }, response_format: { type: "text" } }, timeoutMs: nodeDeadline,
   });
-  const checked = withReflectionFormatRepair(limitProviderConcurrency(withStructuredNodeFormat(withBaselineRepetitionGuidance(http)), settings.concurrency), async (event) => {
+  const checked = withReflectionFormatRepair(limitProviderConcurrency(withMathOutputContract(withStructuredNodeFormat(withBaselineRepetitionGuidance(http))), settings.concurrency), async (event) => {
     if (process.env.DITTO_PROVIDER_LOG) await appendFile(process.env.DITTO_PROVIDER_LOG,
       JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n", "utf8");
   });

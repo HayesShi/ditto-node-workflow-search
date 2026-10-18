@@ -66,6 +66,37 @@ test("duplicate query/body fields yield observations while corrected calls still
   assert.throws(() => session.assertHealthy(), /genuine environment fault/);
 });
 
+test('Trello scalar label bodies remain repairable observations; a real bridge failure still invalidates',async()=>{
+  let calls=0;
+  const session=new OfficialAutomationSession({assertHealthy(){},async request(){calls++;throw Error('real bridge failure');}} as unknown as AutomationBridge,'fixture','fixture','a'.repeat(64),[]);
+  const args={method:'POST',url:'https://api.trello.com/1/cards/card/idLabels',params:'{}'};
+  for(const body of ['"label_urgent"','[]','3','true','null']){
+    assert.match((await session.call('api_fetch',{...args,body})).content,/INVALID_TOOL_ARGUMENTS/);
+    session.assertHealthy();
+  }
+  assert.equal(calls,0);
+  await assert.rejects(session.call('api_fetch',{...args,body:'{"value":"label_urgent"}'}),/real bridge failure/);
+  assert.equal(calls,1);assert.throws(()=>session.assertHealthy(),/real bridge failure/);
+});
+
+test('the observed scalar Trello body can be corrected without poisoning its official world',{skip:!native},async()=>{
+  const bridge=await AutomationBridge.open();
+  try{
+    const session=await bridge.start('simple.trello_urgent_support_card');
+    try{
+      const created=JSON.parse((await session.call('api_fetch',{method:'POST',url:'https://api.trello.com/1/cards',params:null,body:JSON.stringify({idList:'lst_support_todo',idBoard:'brd_support',name:'Scalar-body regression fixture'})})).content) as {id:string};
+      const args={method:'POST',url:`https://api.trello.com/1/cards/${created.id}/idLabels`,params:'{}'};
+      const before=await session.snapshot();
+      assert.match((await session.call('api_fetch',{...args,body:'"label_urgent"'})).content,/INVALID_TOOL_ARGUMENTS/);
+      session.assertHealthy();assert.deepEqual(await session.snapshot(),before);
+      assert.equal((await session.grade(await session.snapshot())).score,0,'bad arguments leave the unfinished task normally gradeable');
+      const corrected=JSON.parse((await session.call('api_fetch',{...args,body:'{"value":"label_urgent"}'})).content) as unknown[];
+      assert.ok(Array.isArray(corrected)&&corrected.length>0);session.assertHealthy();
+      assert.notDeepEqual((await session.snapshot()).world,before.world);
+    }finally{await session.close();}
+  }finally{await bridge.close();}
+});
+
 test("the observed Trello duplicate field mistake can be corrected in the same official world", { skip: !native }, async () => {
   const bridge = await AutomationBridge.open();
   try {

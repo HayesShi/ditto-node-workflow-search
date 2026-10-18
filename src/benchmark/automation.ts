@@ -192,6 +192,17 @@ function validateToolArguments(name: string, args: JsonObject): string | undefin
   } else if (name === "api_fetch") {
     if (typeof args.method !== "string" || typeof args.url !== "string" || !optionalString(args.params) || !optionalString(args.body)) return "api_fetch requires method/url strings and optional params/body JSON strings";
     if (Object.keys(args).some((key) => !["method", "url", "params", "body"].includes(key))) return "Unknown api_fetch argument";
+    // This endpoint's public api_search contract declares value in an object
+    // body. A JSON string is valid JSON but crashes its router's **body before
+    // any tool implementation runs. Report the argument error as an observation.
+    let trelloPath: string | undefined;
+    try { const url=new URL(args.url); if(url.hostname==='api.trello.com')trelloPath=url.pathname; }
+    catch { if(/^\/?trello\//.test(args.url))trelloPath=args.url.replace(/^\/?trello/,''); }
+    if(args.method.toUpperCase()==='POST' && /^\/1\/cards\/[^/]+\/idLabels\/?$/.test(trelloPath ?? '') && typeof args.body==='string' && args.body.length>0) {
+      let body:unknown;
+      try {body=JSON.parse(args.body);}catch{return undefined;} // Official malformed-JSON observation.
+      if(!body || typeof body!=='object' || Array.isArray(body))return 'Trello add-label body must encode a JSON object, for example {"value":"label_id"}; a JSON string, array or null is not an object';
+    }
     if (typeof args.params === "string" && args.params.length > 0) {
       let parsed: unknown;
       try { parsed = JSON.parse(args.params); } catch { return undefined; } // Official API reports malformed JSON as its own 400 observation.

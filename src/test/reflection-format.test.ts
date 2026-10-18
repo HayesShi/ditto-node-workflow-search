@@ -11,27 +11,30 @@ import { GENERATION } from "../protocol.js";
 
 const invalidNull = JSON.stringify({ assessment: { passed: true, summary: "correct" }, issues: [{ severity: "info", description: "checked", suggestedFix: null }] });
 const valid = JSON.stringify({ assessment: { passed: true, summary: "correct" }, issues: [] });
+const repairedNull = JSON.stringify({ assessment: { passed: true, summary: "correct" }, issues: [{ severity:'info',description:'checked' }] });
 const input: SampleInput = { model: { model: "fixture" }, generation: GENERATION, metadata: { nodeType: "INFER.REASONING.REFLECT", nodeId: "reflect-1", taskId: "fixture" }, messages: [{ role: "system", content: "Reflect" }, { role: "user", content: JSON.stringify({ mode: "verify", target: { result: { role: "assistant", content: "2" } } }) }] };
 
 test("REFLECT-only repairs null optional field and non-JSON with feedback on the third response", async () => {
   const requests: SampleInput[] = [];
   const events: ReflectionRepairEvent[] = [];
-  const contents = [invalidNull, "not JSON", valid];
+  const contents = [invalidNull, "not JSON", repairedNull];
   const provider: ModelProvider = { async invoke(request) {
     requests.push(request);
     return { message: { role: "assistant", content: contents[requests.length - 1]! }, finishReason: "stop", usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 } };
   } };
   const repaired = withReflectionFormatRepair(limitProviderConcurrency(provider, 1), (event) => { events.push(event); });
   const result = await repaired.invoke(input, { signal: new AbortController().signal });
-  assert.equal(result.message.content, valid);
+  assert.equal(result.message.content, repairedNull);
   assert.deepEqual(result.usage, { inputTokens: 6, outputTokens: 9, totalTokens: 15 });
   assert.equal(requests.length, 3);
   assert.ok(requests.every((request) => request.generation === GENERATION));
-  assert.deepEqual(requests[1]!.messages.slice(0, 2), input.messages);
-  assert.equal(requests[1]!.messages[2]!.content, invalidNull);
-  assert.match(String(requests[1]!.messages[3]!.content), /suggestedFix must be a string/);
-  assert.equal(requests[2]!.messages[2]!.content, "not JSON");
-  assert.match(String(requests[2]!.messages[3]!.content), /valid JSON object/);
+  assert.equal(requests[1]!.messages.length,2);
+  assert.match(String(requests[1]!.messages[0]!.content), /do not solve the task again/);
+  assert.match(String(requests[1]!.messages[0]!.content), /suggestedFix must be a string/);
+  assert.equal(JSON.parse(String(requests[1]!.messages[1]!.content)).invalidOutput,invalidNull);
+  assert.equal(JSON.parse(String(requests[2]!.messages[1]!.content)).invalidOutput,invalidNull);
+  assert.equal(requests[1]!.metadata?.phase,'reflect-format-repair');
+  assert.doesNotMatch(JSON.stringify(requests[1]!.messages),/"target"|"role":"assistant","content":"2"/);
   assert.deepEqual(events.map((event) => event.outcome), ["retry", "retry", "recovered"]);
   assert.ok(events.every((event) => !("content" in event) && !("target" in event)));
 });
@@ -60,8 +63,8 @@ test("SDK bridge and unmodified Core REFLECT preserve all repair consumption and
     const payload = JSON.parse(body) as { messages: { content: string }[]; temperature: number; max_tokens: number };
     assert.equal(payload.temperature, 0);
     assert.equal(payload.max_tokens, 393216);
-    const reflecting = payload.messages.some(m => m.content.startsWith("Assess the supplied target"));
-    const content = reflecting ? (exhausted ? invalidNull : [invalidNull, "not JSON", valid][reflectCalls++ % 3]!) : "2";
+    const reflecting = payload.messages.some(m => /^(Assess the supplied target|Repair the supplied model output)/.test(m.content));
+    const content = reflecting ? (exhausted ? invalidNull : [invalidNull, "not JSON", repairedNull][reflectCalls++ % 3]!) : "2";
     if (reflecting) assert.ok(payload.messages.some(m => m.content.includes('"mode":"verify"')));
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content }, finish_reason: "stop" }], usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } })}\n\ndata: [DONE]\n\n`);

@@ -73,7 +73,7 @@ test("concurrent workflow diagnostics retain missing usage, hidden retries and f
     let body = "";
     for await (const chunk of request) body += String(chunk);
     const input = JSON.parse(body) as { messages: { content: string }[] };
-    const key = input.messages[0]!.content.includes("diagnostic-multi") ? "multi" : input.messages[0]!.content;
+    const key = input.messages.some(m=>m.content.includes("diagnostic-multi")) ? "multi" : input.messages.at(-1)!.content;
     const count = (calls.get(key) ?? 0) + 1;
     calls.set(key, count);
     if ((key === "retry" && count === 1) || key === "failure") {
