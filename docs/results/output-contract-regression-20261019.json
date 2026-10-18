@@ -1,0 +1,61 @@
+{
+  "purpose": "targeted-regression-not-full-accuracy",
+  "codeCommit": "3970bd5",
+  "protocol": "ditto-topology-flash-20261019-v8-output-contract",
+  "status": "completed",
+  "finishedAt": "2026-10-18T17:16:23.633Z",
+  "planId": "plan-4279b7f4e962eff0",
+  "planSha256": "5296724f33ceb7465b540ca3d1bcd5f3437380e09c13a08c733e3afecb79ae17",
+  "sourceSha256": "aeff701c88c3ff90484b322ffaf1bb5a6b155a655816017215f2f11d4e835d2a",
+  "buildSha256": "16f54a3b9b01d5b1a225419c8047788d6ac106568d5140714113e958c891242e",
+  "dataSha256": "0ade63e8c9fe01fb8964fa22f73423be5e1c78addc9942808de464cabab188c0",
+  "rows": [
+    1,
+    6,
+    17,
+    33,
+    38,
+    46,
+    59,
+    61,
+    64,
+    71,
+    77,
+    92,
+    94,
+    96,
+    99,
+    109,
+    113,
+    119
+  ],
+  "examples": 18,
+  "repeats": 1,
+  "correct": 16,
+  "wrong": 2,
+  "invalid": 0,
+  "formatFailures": 0,
+  "wrongRows": [
+    92,
+    109
+  ],
+  "durationMs": 64843,
+  "totalTokens": 95469,
+  "tokenUsageStatus": "complete",
+  "fullChecks": {
+    "skipped": 0,
+    "passed": 130,
+    "failed": 0
+  },
+  "offlineReplay": {
+    "syntaxRecovered": 11,
+    "modelCalls": 0,
+    "examples": 13,
+    "rejected": 2,
+    "historicalScoresChanged": false
+  },
+  "officialAutomationRegressionPassed": true,
+  "originalAutomationExperimentChanged": false,
+  "oldScoresReused": false,
+  "testSplitAccessed": false
+}
