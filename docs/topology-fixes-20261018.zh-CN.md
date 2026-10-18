@@ -26,6 +26,8 @@
 
 ## 推荐运行顺序
 
+2026-10-18 追加核对：MATH 搜索评估改为每候选 1 次，Automation 保持 5 次，参考 MFlow 对应基线配置；协议升级为 v3。数据必须通过 `scripts/verify_mflow_data.py` 校验。官方环境、固定划分和仍存在的配置差异见 [环境核对报告](official-environment-audit-20261018.zh-CN.md)。
+
 1. 在本分支独立目录安装 npm 依赖和 requirements.txt 中的固定 Python 依赖；设置 `DITTO_PROVIDER_PYTHON`、`MATH_SCORER_PYTHON`。Automation 还需配置原工程指南中的官方环境、数据目录和 `DITTO_AUTOMATION_PYTHON`。
 2. 执行 `npm run check`。本地回环测试如被系统代理影响，在测试进程设置 `NO_PROXY=127.0.0.1,localhost`。
 3. 先由负责人亲自跑少量真实模型 smoke，核对工具轨迹、有效样本数和评分。再启动正式 search；正式 Test 只使用本轮冻结目录。

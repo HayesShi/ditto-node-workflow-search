@@ -12,6 +12,8 @@ MATH 与 AutomationBench 的当前工程验证协议、环境准备、故障处�
 
 完整流程保存在 `best/plan.json`；搜索顶点标记实际节点，父子记录表示候选修改来源。搜索与 Test 校验同一源码、编译产物、依赖、评分环境及协议。旧版结果不能直接作为本版搜索提升证据。
 
+数据划分和搜索评估次数以 [官方环境与配置核对](docs/official-environment-audit-20261018.zh-CN.md) 为准：MATH 搜索评估默认 1 次，Automation 默认 5 次；六个数据集均使用 MFlow 已发布的固定划分。
+
 ## 历史追加路径模式（其余四个数据集）
 
 以下根到叶追加路径说明适用于原入口，不能用于重建新版 MATH/Automation 流程。
@@ -104,7 +106,7 @@ npm run check
 
 ## 运行实验
 
-正式 MATH 搜索默认使用 AFlow 对齐配置：119 道 validation、初始工作流加最多 20 个候选、每个工作流验证 5 次、Top-4 混合采样，以及 Top-3 均值连续 5 轮不变时早停：
+正式 MATH 搜索使用 119 道 validation，候选搜索上限默认 20 轮、每个工作流按 MFlow MATH 基线配置验证 1 次、Top-4 混合采样，以及 Top-3 均值连续 5 轮不变时早停。Automation 基线的搜索评估次数为 5。以下仅展示 MATH 参数：
 
 ```bash
 npm run build
@@ -113,14 +115,14 @@ node --env-file=.env dist/cli.js search \
   --data-dir data/datasets \
   --search-limit 0 \
   --rounds 20 \
-  --repeats 5 \
+  --repeats 1 \
   --evaluation-concurrency 3 \
   --top-k 4 \
   --patience 5 \
   --seed 42
 ```
 
-将 `--dataset` 替换为 `drop`、`humaneval`、`mbpp`、`gsm8k` 或 `math`。`--search-limit 0` 表示完整 validation split。
+`--search-limit 0` 表示完整 validation split。切换数据集时去掉显式的 `--repeats 1`，以免覆盖对应默认值；其余四个数据集的重复次数暂未从实际基线配置核实，当前仍为原默认 5 次。
 
 冻结后再运行 held-out test：
 

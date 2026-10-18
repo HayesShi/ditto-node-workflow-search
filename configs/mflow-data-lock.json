@@ -1,0 +1,99 @@
+{
+  "reference": {
+    "repository": "https://github.com/erwinmsmith/MFlow",
+    "revision": "437040f17a17cbf430f3f41227ca64c576cf1056",
+    "splitRelease": "mflow-splits-v1"
+  },
+  "datasets": {
+    "drop": {
+      "protocol": "aflow-fixed-v1",
+      "splits": {
+        "search": {
+          "file": "drop_validate.jsonl",
+          "count": 200,
+          "sha256": "fa761d3f46c3c995278532ee9354fe78fd03fa6567774ea359e149dea5cf2362"
+        },
+        "test": {
+          "file": "drop_test.jsonl",
+          "count": 800,
+          "sha256": "a0ae6fac687d2bb393c9c6a43d966edf9ed24d0d157cfb7f7a4747cc8b3d9742"
+        }
+      }
+    },
+    "gsm8k": {
+      "protocol": "aflow-fixed-v1",
+      "splits": {
+        "search": {
+          "file": "gsm8k_validate.jsonl",
+          "count": 264,
+          "sha256": "0502dcec3263f5172e450141ff79da1f84401ed0c7e5d51016b3f773fb7ee869"
+        },
+        "test": {
+          "file": "gsm8k_test.jsonl",
+          "count": 1055,
+          "sha256": "2b8372f7b81d842fea01efb66193152b42506e2b23c890c3d90d2aef228dd788"
+        }
+      }
+    },
+    "humaneval": {
+      "protocol": "aflow-fixed-v1",
+      "splits": {
+        "search": {
+          "file": "humaneval_validate.jsonl",
+          "count": 33,
+          "sha256": "7c09e2424572a0e82b14d2dc145bf86feb2aeef9828b8b37c7e87dfe88d902f7"
+        },
+        "test": {
+          "file": "humaneval_test.jsonl",
+          "count": 131,
+          "sha256": "5f7417d249b5a1153d1313c944fafe61f5bcb19717b8d952eb45e6ea5aaa23d9"
+        }
+      }
+    },
+    "mbpp": {
+      "protocol": "aflow-fixed-v1",
+      "splits": {
+        "search": {
+          "file": "mbpp_validate.jsonl",
+          "count": 86,
+          "sha256": "04c54e076bb2cb1a583d8e57110e3a644ae3125699b3309104d3b8cf95436216"
+        },
+        "test": {
+          "file": "mbpp_test.jsonl",
+          "count": 341,
+          "sha256": "0e9485dee21c836087453255557f92457b145dce7dad22b980e007c0500a12b0"
+        }
+      }
+    },
+    "math": {
+      "protocol": "aflow-fixed-v1",
+      "splits": {
+        "search": {
+          "file": "math_validate.jsonl",
+          "count": 119,
+          "sha256": "0ade63e8c9fe01fb8964fa22f73423be5e1c78addc9942808de464cabab188c0"
+        },
+        "test": {
+          "file": "math_test.jsonl",
+          "count": 486,
+          "sha256": "343361223de598f1a8ca101edd5d4a063b8152a3ae80f845855b0d8cfb858e5c"
+        }
+      }
+    },
+    "automationbench": {
+      "protocol": "automationbench-public-simple-v1",
+      "splits": {
+        "search": {
+          "file": "search.jsonl",
+          "count": 200,
+          "sha256": "926b0d17a075f71a4851f505bc23c02fb982bb6e01e12506db8a605f40033354"
+        },
+        "test": {
+          "file": "test.jsonl",
+          "count": 600,
+          "sha256": "fdc0c83b9c1275d8809d28d5c3300e0f38a8b0a8ae2e23eb7700c7195f323331"
+        }
+      }
+    }
+  }
+}

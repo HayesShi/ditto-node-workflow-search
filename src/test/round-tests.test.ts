@@ -34,7 +34,7 @@ test("search/test sample and provider concurrency are independent without changi
   assert.equal(options.searchProviderConcurrency, 1000);
   assert.equal(options.testConcurrency, 400);
   assert.equal(options.rounds, 20);
-  assert.equal(options.repeats, 5);
+  assert.equal(options.repeats, 1);
   assert.equal(options.topK, 4);
   assert.equal(options.patience, 5);
   assert.equal(parseArguments(["search", "--evaluation-concurrency", "3"]).searchProviderConcurrency, 3);

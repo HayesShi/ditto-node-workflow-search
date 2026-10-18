@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { DATASETS, type DatasetName } from "./domain.js";
+import { PROTOCOL } from "./protocol.js";
 
 export interface ProviderSettings {
   readonly baseUrl: string;
@@ -91,7 +92,8 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
     searchLimit: integer(values.get("search-limit") ?? "0", "search-limit", 0, 100_000),
     testLimit: integer(values.get("test-limit") ?? "0", "test-limit", 0, 100_000),
     rounds: integer(values.get("rounds") ?? "20", "rounds", 1, 1_000),
-    repeats: integer(values.get("repeats") ?? "5", "repeats", 1, 20),
+    repeats: integer(values.get("repeats") ?? String(rawDataset === "math"
+      ? PROTOCOL.validationRepeatOverrides.math : PROTOCOL.defaultValidationRepeats), "repeats", 1, 20),
     testRepeats: integer(values.get("test-repeats") ?? "3", "test-repeats", 1, 20),
     evaluationConcurrency: rawCommand === "search" ? searchConcurrency : testConcurrency,
     searchConcurrency,
