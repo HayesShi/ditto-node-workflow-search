@@ -3,7 +3,7 @@ import { evaluateTasks } from "./evaluator.js";
 import { readBenchmarkSplit } from "./fixed-splits.js";
 import { requireRecord, requireString, stableId } from "./io.js";
 import { lengthBucket } from "./sampling.js";
-import { scoreGsm8kAnswer } from "./text-scores.js";
+import { extractLastNumber, scoreGsm8kAnswer } from "./text-scores.js";
 import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkIdentity, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark, PrivateScorer } from "./types.js";
 
 interface Gsm8kRow {
@@ -39,7 +39,9 @@ function loadedGsm8k(split: "validate" | "test", rows: readonly Gsm8kRow[], iden
   const tasks = Object.freeze(rows.map((row) => row.task));
   const scorer: PrivateScorer = {
     async score(taskId, prediction): Promise<ScoreEvidence> {
-      return scoreGsm8kAnswer(referenceFor(references, taskId), prediction);
+      const reference = referenceFor(references, taskId);
+      if (extractLastNumber(reference) === undefined) throw new Error(`Invalid GSM8K reference for ${taskId}`);
+      return scoreGsm8kAnswer(reference, prediction);
     },
     expectedLabel(taskId): string {
       return referenceFor(references, taskId);

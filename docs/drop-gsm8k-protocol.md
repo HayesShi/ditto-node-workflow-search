@@ -85,3 +85,65 @@ Search data alone is used for mutation and selection. Five validation repeats
 are repeated evaluations of that same search set, not five folds. Report search
 cost separately from final evaluation cost. These changes do not launch a paid
 experiment or claim a measured benchmark improvement.
+
+## Failure and recovery semantics
+
+Completed wrong answers remain valid zeroes. A response that ends normally with
+`length` is not automatically regenerated or excluded. The application Worker
+boundary retains the real finish reason and raw content. For REFLECT and
+DELIBERATE it uses schema-valid structured output (including select's actual
+candidate); unusable budget-truncated output produces an empty answer scored by
+the unchanged private scorer. It never inherits an earlier answer for an unusable
+structured response. Generation outcome evidence is saved per case. The published
+package and `node_modules` are unchanged. Unresolved provider, execution,
+format or scoring faults invalidate the complete candidate evaluation. Invalid
+summaries are retained with their original membership, but cannot enter ranking,
+parent selection, experience or score backpropagation. Non-finite and out-of-range
+scores are evaluator faults. Empty DROP gold and nonnumeric GSM8K gold are
+rejected by the private scorer, rather than labelled model errors.
+
+The SDK permits three HTTP attempts for transient failures; authentication,
+balance and invalid-request failures are not retried. Whole-workflow retries
+apply only to transient errors. Attempt logs and workflow diagnostics retain
+known token usage and mark unavailable consumption as unknown. A total request
+deadline bounds upstream streaming and SDK retries. An incomplete stream does
+not become a successful answer. Do not interpret missing usage as zero cost.
+
+REFLECT may make up to three format attempts after normal `stop` responses that
+violate its published output schema. These attempts preserve the target, record
+the original responses and consumption, and do not replace ordinary wrong-answer
+scoring. A `revise` response must include `revisedResult`, even when confirming
+the original answer. `length` does not trigger this format repair.
+
+Proposal inputs distinguish same-Graph DAG dependencies from earlier Graph
+outputs carried automatically by Loop state. Proposal failures do not count as
+evaluated search rounds. Provider failures stop at the saved boundary, and three
+identical invalid proposals stop for inspection rather than repeatedly paying
+for the same rejected structure.
+
+Search case recovery binds source/dependency hashes, plan, model, endpoint,
+generation, prompt profile, metric, raw data identity, ordered membership and
+repeat count. It reuses valid cases only under that identity, preserves earlier
+failed attempts, and retries failed cases as complete workflows. A completed
+evaluation is not reused as an independent repetition. Final evaluation saves
+failures as `test-failed` and refuses a successful completion status; per-case
+recovery at that final-test entry point is not implemented.
+
+Formal CLI runs still require the complete fixed split. A separately labelled
+engineering diagnostic may verify the complete original file before selecting
+predeclared IDs, but its subset scores are not full-partition benchmark results.
+Candidate recovery or regression is not evidence of new feedback-driven search.
+
+Optimizer feedback includes public workflow specifications, scores, deltas,
+outcomes and predictions. Private reference answers and scorer errors remain in
+local evaluation evidence and are omitted from every optimizer request, including
+proposal-repair requests. Actual Provider/Worker/Executor/scorer tests enforce
+that boundary.
+
+The historical six 100-example diagnostics were generated under an earlier
+protocol that sent expected answers to the optimizer and rejected structured
+`length` responses downstream. Their scores remain reproducible historical
+diagnostics; they are not results for this fixed delivery. Separate repair
+validation uses five fixed Search examples per dataset, a fresh baseline and one
+feedback-generated candidate, with independent official checks. No independent
+Test performance or clean 100-example search is claimed.

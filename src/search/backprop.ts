@@ -1,3 +1,4 @@
+import { assertValidEvaluation } from "../benchmark/evaluator.js";
 import type { EvaluationSummary, SearchTreeNode } from "../domain.js";
 
 /** Attach an evaluation to one runnable leaf and propagate it to all ancestors. */
@@ -6,6 +7,7 @@ export function backpropagateEvaluation(
   leafId: string,
   evaluation: EvaluationSummary,
 ): readonly SearchTreeNode[] {
+  assertValidEvaluation(evaluation);
   const updated: SearchTreeNode[] = [];
   const visited = new Set<string>();
   let cursorId: string | null = leafId;

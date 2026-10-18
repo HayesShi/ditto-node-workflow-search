@@ -97,7 +97,13 @@ class BridgeTest(unittest.TestCase):
                     "debug": {"messages": ["do-not-log-body"]}}})
 
         def make_client(**kwargs):
-            return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+            injected = kwargs.pop("http_client", None)
+            # Retain production attempt hooks while replacing only the network.
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                       event_hooks=injected.event_hooks if injected else None)
+            if injected is not None:
+                asyncio.get_running_loop().create_task(injected.aclose())
+            return AsyncOpenAI(**kwargs, http_client=client)
 
         requests = [{"id": index, "profile": "automationbench", "body": {"model": f"fixture-{status}",
                     "messages": [{"role": "user", "content": "private-prompt-do-not-log"}]}}
@@ -134,7 +140,13 @@ class BridgeTest(unittest.TestCase):
             return httpx.Response(200, headers={"content-type": "text/event-stream", "x-request-id": "stream-incomplete-id"}, content=sse)
 
         def make_client(**kwargs):
-            return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+            injected = kwargs.pop("http_client", None)
+            # Retain production attempt hooks while replacing only the network.
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                       event_hooks=injected.event_hooks if injected else None)
+            if injected is not None:
+                asyncio.get_running_loop().create_task(injected.aclose())
+            return AsyncOpenAI(**kwargs, http_client=client)
 
         request = {"id": 1, "profile": "automationbench", "body": {"model": "fixture", "messages": [], "stream": True}}
         output = io.StringIO()
@@ -162,7 +174,13 @@ class BridgeTest(unittest.TestCase):
             return httpx.Response(200, headers={"content-type": "text/event-stream", "x-request-id": "stream-error-id"}, content=sse)
 
         def make_client(**kwargs):
-            return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+            injected = kwargs.pop("http_client", None)
+            # Retain production attempt hooks while replacing only the network.
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                       event_hooks=injected.event_hooks if injected else None)
+            if injected is not None:
+                asyncio.get_running_loop().create_task(injected.aclose())
+            return AsyncOpenAI(**kwargs, http_client=client)
 
         request = {"id": 1, "profile": "automationbench", "body": {"model": "fixture", "messages": [], "stream": True}}
         output = io.StringIO()
@@ -247,7 +265,13 @@ class BridgeTest(unittest.TestCase):
             return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse)
 
         def make_client(**kwargs):
-            return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+            injected = kwargs.pop("http_client", None)
+            # Retain production attempt hooks while replacing only the network.
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                       event_hooks=injected.event_hooks if injected else None)
+            if injected is not None:
+                asyncio.get_running_loop().create_task(injected.aclose())
+            return AsyncOpenAI(**kwargs, http_client=client)
 
         body = {"model": "fixture", "messages": [{"role": "user", "content": "private-prompt-do-not-log"}],
                 "temperature": 0.9, "top_p": 0.8, "reasoning_effort": "high", "max_tokens": 100,

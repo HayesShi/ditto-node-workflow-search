@@ -1,3 +1,4 @@
+import { assertValidEvaluation } from "../benchmark/evaluator.js";
 import type {
   AgentPlanSpec,
   EvaluationSummary,
@@ -120,11 +121,13 @@ export class NodeWorkflowSearch {
     let evaluationHistory: Array<Pick<EvaluationSummary, "score" | "standardDeviation">>;
     let completedRounds = 0;
     let proposalFailures = 0;
+    let previousProposalError = "";
+    let repeatedProposalFailures = 0;
     let nextSearchIndex = 2;
     if (this.#resume) {
       const saved = this.#resume;
       if (saved.schemaVersion !== 1 || saved.completedRounds > this.#rounds) throw new Error("Invalid search resume state");
-      for (const node of saved.nodes) { tree.set(node.id, node); seenPaths.add(node.pathHash); }
+      for (const node of saved.nodes) { if (node.evaluation) assertValidEvaluation(node.evaluation); tree.set(node.id, node); seenPaths.add(node.pathHash); }
       assertOneNodePerTreeEntry(tree);
       experiences.push(...saved.experiences);
       this.#random.restore(saved.randomState);
@@ -164,6 +167,7 @@ export class NodeWorkflowSearch {
     seenPaths.add(initial.pathHash);
     const initialPlan = materializeAgentPlan(initial.id, initialPath);
     const initialEvaluation = await this.#evaluate(initialPlan);
+    assertValidEvaluation(initialEvaluation);
     const initialExperience = experienceFor(initial, initialEvaluation, null, true);
     experiences.push(initialExperience);
     backpropagateEvaluation(tree, initial.id, initialEvaluation);
@@ -188,8 +192,7 @@ export class NodeWorkflowSearch {
     let stoppedBecause: SearchResult["stoppedBecause"] = "max-rounds";
     if (this.#resume && checkAFlowConvergence(evaluationHistory, 3, 0, this.#patience).converged) stoppedBecause = "converged";
 
-    // Format/duplicate rejections regenerate inside a round. As in frozen
-    // AFlow's outer loop, optimizer/provider exceptions consume a search slot.
+    // Failed proposals are not evaluated candidates or completed search rounds.
     while (completedRounds < this.#rounds && stoppedBecause !== "converged") {
       const round = completedRounds + 1;
       const frontier = [...tree.values()].filter((node) =>
@@ -244,14 +247,18 @@ export class NodeWorkflowSearch {
           error: error instanceof Error ? error.message : String(error),
         });
         if (error instanceof ProposalValidationError) {
+          repeatedProposalFailures = error.message === previousProposalError ? repeatedProposalFailures + 1 : 1;
+          previousProposalError = error.message;
+          if (repeatedProposalFailures >= 3) throw new Error(`Repeated invalid proposal requires repair: ${error.message}`);
           if (++proposalFailures >= 100) throw new Error("100 invalid proposals: search requires attention; no fabricated fallback was evaluated");
         } else {
-          completedRounds++;
           await saveState();
+          throw error;
         }
         continue;
       }
       proposalFailures = 0;
+      repeatedProposalFailures = 0;
 
       const searchNodeId = `search-${String(nextSearchIndex++).padStart(3, "0")}`;
       const child = createSearchTreeNode(
@@ -292,6 +299,7 @@ export class NodeWorkflowSearch {
         throw error;
       }
 
+      assertValidEvaluation(evaluation);
       const parentReference = directOrMeanScore(parent);
       const experience = experienceFor(child, evaluation, parentReference, false);
       completedRounds++;

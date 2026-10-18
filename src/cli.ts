@@ -1,3 +1,4 @@
+import { CaseRecovery, evaluationCodeHash } from "./run/case-recovery.js";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { DockerPythonJudge, loadBenchmark, sha256File } from "./benchmark/index.js";
@@ -101,14 +102,21 @@ async function search(
     // files; no test score or test completion enters this search process.
     await store.saveCheckpoint(plan);
     let scoreSum = 0;
-    return loaded.evaluate(
+    const recovery = await CaseRecovery.open(join(options.outputRoot, "case-recovery"), {
+      codeHash: await evaluationCodeHash(process.cwd()), plan, model: provider.model, endpoint: provider.baseUrl,
+      protocol: PROTOCOL, generation: GENERATION, metric: metricProfile(options.dataset), dataHash,
+      selectedIds: loaded.tasks.map(task => task.id), promptProfile: baselinePromptProfile(options.dataset), repeats: options.repeats,
+    }, { evaluationConcurrency: options.evaluationConcurrency, providerConcurrency: provider.concurrency });
+    const summary = await loaded.evaluate(
       (task) => executor.run(plan, task),
       {
         repeats: options.repeats,
+        priorCases: recovery.priorCases,
         concurrency: options.evaluationConcurrency,
         retryAttempts: 5,
         async onCase(progress) {
           scoreSum += progress.result.score;
+          await recovery.record(progress.result);
           await store.saveLiveCase(plan.leafSearchNodeId, progress.result);
           console.log(JSON.stringify({
             phase: "validation-progress",
@@ -125,6 +133,9 @@ async function search(
         },
       },
     );
+    await recovery.finish(summary.valid === true);
+    await store.saveEvaluation(plan.leafSearchNodeId, summary);
+    return summary;
   };
   const proposer = new NextNodeProposer(experiment.runtime, experiment.providerName, experiment.model);
   let checkpointScore = -Infinity;
@@ -259,9 +270,7 @@ async function testFrozen(
       },
     },
   );
-  await store.saveTest(summary);
   Object.assign(manifest, {
-    status: "complete",
     completedAt: new Date().toISOString(),
     test: {
       file: basename(dataPath),
@@ -275,7 +284,7 @@ async function testFrozen(
     },
     execution: { model: provider.model, endpoint: provider.baseUrl },
   });
-  await store.writeManifest(manifest);
+  await store.finishTest(manifest, summary);
   console.log(JSON.stringify({ phase: "test-complete", dataset: options.dataset, examples: loaded.tasks.length, score: summary.score, runDirectory: store.directory }));
 }
 

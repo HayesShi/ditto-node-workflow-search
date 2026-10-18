@@ -155,6 +155,29 @@ export interface ScoreEvidence {
 }
 
 export interface CaseResult extends ScoreEvidence {
+  readonly generationOutcomes?: readonly GenerationOutcome[];
+  readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
+  readonly providerAttempts?: number;
+  readonly unknownUsageAttempts?: number;
+  readonly failedProviderAttempts?: number;
+  /** Earlier unsuccessful evaluation records, retained during infrastructure recovery. */
+  readonly previousResults?: readonly CaseResult[];
+  /** A numeric score is usable only when valid is true (legacy results also require no error). */
+  readonly valid?: boolean;
+  readonly attempts?: readonly {
+    readonly attempt: number;
+    readonly error: string;
+    readonly failureKind: "timeout" | "provider" | "execution" | "judge";
+    readonly usageKnown: boolean;
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly totalTokens?: number;
+    readonly failedProviderAttempts?: number;
+    readonly providerAttempts?: number;
+    readonly unknownUsageAttempts?: number;
+    readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
+  }[];
+  readonly usageKnown?: boolean;
   readonly caseId: string;
   readonly latencyMs: number;
   readonly inputTokens: number;
@@ -165,6 +188,15 @@ export interface CaseResult extends ScoreEvidence {
 }
 
 export interface EvaluationSummary {
+  readonly providerAttemptCount?: number;
+  readonly unknownUsageAttemptCount?: number;
+  /** Totals never imply zero cost for requests with missing usage. */
+  readonly tokenUsageStatus?: "complete" | "known-lower-bound";
+  /** False means score/repeatScores are placeholders, never optimizer feedback. */
+  readonly valid?: boolean;
+  readonly validRuns?: number;
+  readonly unknownUsageRuns?: number;
+  readonly failedAttemptCount?: number;
   readonly repeatScores?: readonly number[];
   readonly score: number;
   readonly standardDeviation: number;
@@ -191,11 +223,39 @@ export interface SearchExperience {
   readonly failures: readonly Pick<CaseResult, "caseId" | "prediction" | "expected" | "error">[];
 }
 
+/** One logical provider invocation, including each underlying HTTP retry. */
+export interface ProviderCallDiagnostics {
+  readonly requestId: number;
+  readonly attempts: number;
+  readonly failedAttempts: number;
+  readonly unknownUsageAttempts: number;
+  readonly usageKnown: boolean;
+  /** Known lower bounds when usageKnown is false. */
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+}
+
+export interface GenerationOutcome {
+  readonly nodeId: string;
+  readonly nodeType: string;
+  readonly finishReason: "length";
+  readonly usable: boolean;
+  readonly content: unknown;
+  readonly parseError?: string;
+}
+
 export interface AgentRunResult {
+  readonly generationOutcomes?: readonly GenerationOutcome[];
   readonly answer: string;
   readonly executedNodeIds: readonly string[];
   readonly executedGraphIds: readonly string[];
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly totalTokens: number;
+  readonly usageKnown?: boolean;
+  readonly providerAttempts?: number;
+  readonly failedProviderAttempts?: number;
+  readonly unknownUsageAttempts?: number;
+  readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
 }

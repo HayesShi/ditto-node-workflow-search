@@ -47,6 +47,8 @@ export interface BenchmarkEvaluationOptions {
   readonly repeats?: number;
   readonly concurrency?: number;
   readonly retryAttempts?: number;
+  /** Caller must verify the complete execution identity before supplying recovery records. */
+  readonly priorCases?: readonly CaseResult[];
   /** Called after each case finishes; useful for live progress without exposing private judge data. */
   readonly onCase?: (progress: {
     readonly completed: number;

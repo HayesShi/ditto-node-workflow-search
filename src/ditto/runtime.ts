@@ -1,3 +1,6 @@
+import { withReflectionFormatRepair } from "./reflection-format.js";
+import { budgetOutputBoundary } from "./budget-output.js";
+import { appendFile } from "node:fs/promises";
 import { createDitto, type DittoRuntime } from "@codesoul-co/ditto/runtime";
 import { Sandbox } from "@codesoul-co/ditto/runtime/sandbox";
 import { createContextWorker } from "@codesoul-co/ditto/worker/context";
@@ -40,16 +43,20 @@ export function createExperimentRuntime(settings: ProviderSettings, options: Exp
   });
   const providerName = "deepseek";
   const provider = limitProviderConcurrency(applyModelProfile(http, profile), settings.concurrency);
+  const budget = budgetOutputBoundary();
+  const checked = budget.provider(withReflectionFormatRepair(provider, async event => {
+    if (process.env.DITTO_PROVIDER_LOG) await appendFile(process.env.DITTO_PROVIDER_LOG, JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n", "utf8");
+  }));
   const runtime = createDitto({ sandbox: sandbox.policy, workers: [
     createContextWorker(profile === "automationbench" ? { policy: {
       // Highest values accepted by the public npm policy validator. Referenced
       // Context items can carry larger inline payloads without a token ceiling.
       maxItems: 1_000_000, maxInlineBytes: 1_000_000,
     } } : {}),
-    createInferWorker({
-      providers: { [providerName]: provider },
+    budget.worker(createInferWorker({
+      providers: { [providerName]: checked },
       defaultProvider: providerName, timeoutMs: nodeDeadline,
-    }),
+    })),
     ...(options.memory ? [createMemoryWorker(options.memory)] : []),
     ...(profile === "automationbench" || options.tools ? [createInteractionWorker({ tools: options.tools ?? [],
       ...(profile === "automationbench" ? { output: { async deliver(input) { return { deliveryId: input.deliveryId, status: "accepted" as const }; } } } : {}),

@@ -1,3 +1,4 @@
+import { assertValidEvaluation } from "../benchmark/evaluator.js";
 import type { SearchTreeNode } from "../domain.js";
 import type { SeededRandom } from "./random.js";
 
@@ -16,6 +17,7 @@ export function selectParent(
     throw new Error("AFlow parent selection accepts only complete evaluated workflows");
   }
 
+  for (const candidate of candidates) assertValidEvaluation(candidate.evaluation!);
   // Array.sort is stable in supported Node versions, matching AFlow's score-only
   // ordering for ties before sampling from the highest-scoring unique rounds.
   const ranked = [...candidates].sort((left, right) => right.evaluation!.score - left.evaluation!.score);
