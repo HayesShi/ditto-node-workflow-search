@@ -1,5 +1,7 @@
 """Use the same installed OpenAI Python SDK as frozen AFlow for HTTP/retries."""
 import asyncio
+import contextvars
+import httpx
 import hashlib
 import json
 import os
@@ -212,6 +214,35 @@ def log(record):
             stream.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), "pid": os.getpid(), **record}) + "\n")
 
 
+_attempt_context = contextvars.ContextVar("attempt_diagnostics", default=None)
+
+
+async def record_http_request(request):
+    current = _attempt_context.get()
+    if current is not None:
+        current["attempts"] += 1
+        log({"phase": "http-attempt", "id": current["requestId"], "attempt": current["attempts"]})
+
+
+async def record_http_response(response):
+    current = _attempt_context.get()
+    if current is not None:
+        if response.status_code >= 400:
+            current["failedAttempts"] += 1
+        log({"phase": "http-status", "id": current["requestId"], "attempt": current["attempts"], "status": response.status_code})
+
+
+def account_usage(diagnostics, raw, failed=False):
+    usage = raw.get("usage") or {}
+    known = all(isinstance(usage.get(k), int) and usage[k] >= 0 for k in ("prompt_tokens", "completion_tokens", "total_tokens"))
+    diagnostics.update(inputTokens=usage.get("prompt_tokens", 0), outputTokens=usage.get("completion_tokens", 0), totalTokens=usage.get("total_tokens", 0))
+    diagnostics["unknownUsageAttempts"] = max(0, diagnostics["attempts"] - (1 if known else 0))
+    diagnostics["usageKnown"] = known and diagnostics["unknownUsageAttempts"] == 0
+    if failed:
+        diagnostics["failedAttempts"] = diagnostics["attempts"]
+    return diagnostics
+
+
 async def main():
     tasks = {}
     clients = []
@@ -225,7 +256,8 @@ async def main():
         # retries for 400/401/402/403; accounting/authentication failures need
         # operator action, not additional paid evaluation attempts.
         entry = {"sdk": AsyncOpenAI(api_key=os.environ["CODE_SOUL_API_KEY"],
-                                    base_url=os.environ["CODE_SOUL_BASE_URL"]),
+                                    base_url=os.environ["CODE_SOUL_BASE_URL"], max_retries=2,
+                                    http_client=httpx.AsyncClient(event_hooks={"request": [record_http_request], "response": [record_http_response]})),
                  "active": 0, "failures": 0, "generation": len(clients) + 1, "retired": False}
         clients.append(entry)
         return entry
@@ -253,7 +285,11 @@ async def main():
 
     async def invoke(request):
         nonlocal client
+        diagnostics = {"requestId": request["id"], "attempts": 0, "failedAttempts": 0, "unknownUsageAttempts": 0,
+                       "usageKnown": False, "inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
+        token = _attempt_context.set(diagnostics)
         started = time.monotonic()
+        raw = {}
         incoming = request["body"]
         body = prepare_request(incoming, request.get("profile", "math"))
         passthrough = bool(incoming.get("stream"))
@@ -274,30 +310,33 @@ async def main():
              "toolNames": [tool.get("function", {}).get("name") for tool in body.get("tools") or []],
              "clientGeneration": entry["generation"]})
         try:
-            response = await entry["sdk"].chat.completions.create(**body)
-            provider_request_id = response_request_id(response)
-            if body.get("stream"):
-                aggregate = StreamAccumulator()
-                if passthrough:
-                    emit({"id": request["id"], "event": "start", "status": 200})
-                    stream_started = True
-                try:
-                    async for chunk in response:
-                        raw_chunk = chunk.model_dump(exclude_none=True)
-                        aggregate.add(raw_chunk)
-                        if passthrough:
-                            emit({"id": request["id"], "event": "chunk", "body": raw_chunk})
-                    raw = aggregate.finish()
-                finally:
-                    await response.close()
-            else:
-                # Omit SDK-materialized null optional fields for Ditto's parser.
-                raw = response.model_dump(exclude_none=True)
+            async with asyncio.timeout(request.get("timeoutMs", 600000) / 1000):
+                response = await entry["sdk"].chat.completions.create(**body, timeout=httpx.Timeout(request.get("timeoutMs", 600000) / 1000, connect=5))
+                provider_request_id = response_request_id(response)
+                if body.get("stream"):
+                    aggregate = StreamAccumulator()
+                    if passthrough:
+                        emit({"id": request["id"], "event": "start", "status": 200})
+                        stream_started = True
+                    try:
+                        async for chunk in response:
+                            raw_chunk = chunk.model_dump(exclude_none=True)
+                            aggregate.add(raw_chunk)
+                            if passthrough:
+                                emit({"id": request["id"], "event": "chunk", "body": raw_chunk})
+                        raw = aggregate.finish()
+                    finally:
+                        await response.close()
+                else:
+                    # Omit SDK-materialized null optional fields for Ditto's parser.
+                    raw = response.model_dump(exclude_none=True)
+            account_usage(diagnostics, raw)
             entry["failures"] = 0
             health["successes"] += 1
             health["lastSuccessAt"] = datetime.now(timezone.utc).isoformat()
             result = {"id": request["id"], "event": "end"} if passthrough else {"id": request["id"], "status": 200, "body": raw}
-            log({"phase": "response", "id": request["id"], "elapsedMs": round((time.monotonic()-started)*1000),
+            result["diagnostics"] = diagnostics
+            log({"phase": "response", "response": raw, "diagnostics": diagnostics, "id": request["id"], "elapsedMs": round((time.monotonic()-started)*1000),
                  "model": raw.get("model"), "fingerprint": raw.get("system_fingerprint"), "usage": raw.get("usage"),
                  "finishReason": raw["choices"][0].get("finish_reason"),
                  "contentChars": len(raw["choices"][0]["message"].get("content") or ""),
@@ -308,12 +347,15 @@ async def main():
         except Exception as error:
             health["failures"] += 1
             health["lastFailureAt"] = datetime.now(timezone.utc).isoformat()
+            if "aggregate" in locals():
+                raw = aggregate.raw
+            account_usage(diagnostics, raw, failed=True)
             diagnostic = safe_provider_error(error, body, provider_request_id)
-            status = diagnostic["status"]
-            result = {"id": request["id"], "status": status, "body": {"error": diagnostic}}
+            status = 504 if isinstance(error, TimeoutError) else diagnostic["status"]
+            result = {"id": request["id"], "status": status, "body": {"error": diagnostic}, "diagnostics": diagnostics}
             if stream_started:
                 result["event"] = "error"
-            log({"phase": "error", "id": request["id"], "status": status,
+            log({"phase": "error", "diagnostics": diagnostics, "id": request["id"], "status": status,
                  "errorType": type(error).__name__, "causeType": type(error.__cause__).__name__,
                  "error": diagnostic,
                  "clientGeneration": entry["generation"]})
@@ -328,6 +370,7 @@ async def main():
                     # In-flight calls retain the old client. This does not
                     # change generation parameters or add retry attempts.
         finally:
+            _attempt_context.reset(token)
             entry["active"] -= 1
             if entry["retired"] and entry["active"] == 0:
                 await entry["sdk"].close()

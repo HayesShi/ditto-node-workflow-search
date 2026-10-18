@@ -1,3 +1,4 @@
+import { captureProviderDiagnostics, summarizeProviderDiagnostics } from "../ditto/provider-diagnostics.js";
 import { EXPERIMENT_EXECUTION } from "../model-profile.js";
 import { baselineTextMessages } from "../benchmark/baseline-prompts.js";
 import { isDeepStrictEqual } from "node:util";
@@ -29,6 +30,7 @@ import type {
   OutputCondition,
   SearchableNodeType,
   WorkflowNodeSpec,
+  GenerationOutcome,
 } from "../domain.js";
 
 type NormalizedNodeOutput = Context | TrajectoryOutput | SampleOutput | DeliberateOutput | ReflectOutput;
@@ -50,6 +52,7 @@ interface ExecutionState {
   readonly visits: Record<string, number>;
   readonly executedNodeIds: string[];
   readonly executedGraphIds: string[];
+  readonly generationOutcomes: GenerationOutcome[];
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -112,6 +115,7 @@ export class WorkflowExecutor {
             }
             const output = normalizeNodeOutput(node, rawOutputs[node.id]);
             state.outputs[node.id] = output;
+            if ("generationOutcome" in output) state.generationOutcomes.push(output.generationOutcome as GenerationOutcome);
             state.executedNodeIds.push(node.id);
             addUsage(state, usageOf(output));
           }
@@ -132,11 +136,19 @@ export class WorkflowExecutor {
           inputTokens: state.inputTokens,
           outputTokens: state.outputTokens,
           totalTokens: state.totalTokens,
+          generationOutcomes: Object.freeze([...state.generationOutcomes]),
         });
       },
     });
 
-    return this.#runtime.loop(definition, task, signal ? { signal } : {});
+    return captureProviderDiagnostics(async records => {
+      try {
+        const result = await this.#runtime.loop(definition, task, signal ? { signal } : {});
+        return records.length ? Object.freeze({ ...result, ...summarizeProviderDiagnostics(records) }) : result;
+      } catch (error) {
+        throw Object.assign(new Error(error instanceof Error ? error.message : String(error), { cause: error }), summarizeProviderDiagnostics(records));
+      }
+    });
   }
 }
 
@@ -467,6 +479,7 @@ function createExecutionState(): ExecutionState {
     visits: Object.create(null) as Record<string, number>,
     executedNodeIds: [],
     executedGraphIds: [],
+    generationOutcomes: [],
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,

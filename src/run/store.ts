@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { renameArtifact } from "./atomic.js";
+import { assertValidEvaluation } from "../benchmark/evaluator.js";
 import { dirname, join, resolve } from "node:path";
 import type {
   AgentPlanSpec,
@@ -125,6 +126,13 @@ export class RunStore {
       writeJson(join(directory, "summary.json"), summaryWithoutResults(summary)),
       writeJsonLines(join(directory, "samples.jsonl"), summary.results),
     ]);
+  }
+
+  /** Failed final evaluation remains inspectable and must not be published as complete. */
+  async finishTest(manifest: Readonly<Record<string, unknown>>, summary: EvaluationSummary): Promise<void> {
+    await this.saveTest(summary);
+    await this.writeManifest({ ...manifest, status: summary.valid === false || summary.failedRuns > 0 ? "test-failed" : "complete" });
+    assertValidEvaluation(summary);
   }
 
   async readBestPlan(): Promise<AgentPlanSpec> {

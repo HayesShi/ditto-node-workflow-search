@@ -1,3 +1,4 @@
+import { assertValidEvaluation } from "../benchmark/evaluator.js";
 import type {
   AgentPlanSpec,
   EvaluationSummary,
@@ -124,7 +125,7 @@ export class NodeWorkflowSearch {
     if (this.#resume) {
       const saved = this.#resume;
       if (saved.schemaVersion !== 1 || saved.completedRounds > this.#rounds) throw new Error("Invalid search resume state");
-      for (const node of saved.nodes) { tree.set(node.id, node); seenPaths.add(node.pathHash); }
+      for (const node of saved.nodes) { if (node.evaluation) assertValidEvaluation(node.evaluation); tree.set(node.id, node); seenPaths.add(node.pathHash); }
       assertOneNodePerTreeEntry(tree);
       experiences.push(...saved.experiences);
       this.#random.restore(saved.randomState);
@@ -164,6 +165,7 @@ export class NodeWorkflowSearch {
     seenPaths.add(initial.pathHash);
     const initialPlan = materializeAgentPlan(initial.id, initialPath);
     const initialEvaluation = await this.#evaluate(initialPlan);
+    assertValidEvaluation(initialEvaluation);
     const initialExperience = experienceFor(initial, initialEvaluation, null, true);
     experiences.push(initialExperience);
     backpropagateEvaluation(tree, initial.id, initialEvaluation);
@@ -292,6 +294,7 @@ export class NodeWorkflowSearch {
         throw error;
       }
 
+      assertValidEvaluation(evaluation);
       const parentReference = directOrMeanScore(parent);
       const experience = experienceFor(child, evaluation, parentReference, false);
       completedRounds++;

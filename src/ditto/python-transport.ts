@@ -1,3 +1,5 @@
+import type { ProviderCallDiagnostics } from "../domain.js";
+import { currentProviderDiagnostics } from "./provider-diagnostics.js";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -9,12 +11,14 @@ interface PendingRequest {
   reject(error: Error): void;
   cleanup(): void;
   controller?: ReadableStreamDefaultController<Uint8Array>;
+  diagnostics?: ProviderCallDiagnostics[];
 }
 
 interface BridgeReply {
   id: number;
   status?: number;
   body?: unknown;
+  diagnostics?: ProviderCallDiagnostics;
   event?: "start" | "chunk" | "end" | "error";
 }
 
@@ -32,13 +36,15 @@ export class PythonTransport {
   readonly #profile: ExperimentModelProfile;
   readonly #encoder = new TextEncoder();
   #id = 0;
+  readonly #timeoutMs: number;
   #failure: Error | undefined;
   #closed = false;
   readonly #exit: Promise<void>;
 
   constructor(settings: ProviderSettings, options: PythonTransportOptions = {}) {
+    this.#timeoutMs = settings.timeoutMs;
     this.#profile = options.profile ?? "math";
-    const python = options.command ?? process.env.AFLOW_SCORER_PYTHON ?? "python";
+    const python = options.command ?? process.env.DITTO_PROVIDER_PYTHON ?? process.env.AFLOW_SCORER_PYTHON ?? "python";
     this.#child = spawn(python, options.arguments ? [...options.arguments] : ["-u", fileURLToPath(new URL("../../scripts/provider_bridge.py", import.meta.url))], {
       windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, PYTHONIOENCODING: "utf-8", CODE_SOUL_BASE_URL: settings.baseUrl, CODE_SOUL_API_KEY: settings.apiKey },
@@ -65,13 +71,14 @@ export class PythonTransport {
     if (typeof init?.body !== "string") throw new Error("Provider bridge requires a JSON body");
     const id = ++this.#id;
     const body: unknown = JSON.parse(init.body);
+    const diagnostics = currentProviderDiagnostics();
     return new Promise<Response>((resolve, reject) => {
       const aborted = (): void => this.#cancel(id, new Error("Provider bridge request cancelled"));
       const cleanup = (): void => init.signal?.removeEventListener("abort", aborted);
-      this.#pending.set(id, { resolve, reject, cleanup });
+      this.#pending.set(id, { resolve, reject, cleanup, ...(diagnostics ? { diagnostics } : {}) });
       init.signal?.addEventListener("abort", aborted, { once: true });
       if (init.signal?.aborted) { aborted(); return; }
-      this.#write({ id, body, profile: this.#profile });
+      this.#write({ id, body, profile: this.#profile, timeoutMs: this.#timeoutMs });
     });
   };
 
@@ -104,6 +111,7 @@ export class PythonTransport {
     if (!Number.isSafeInteger(reply.id)) throw new Error("Invalid request id");
     const pending = this.#pending.get(reply.id);
     if (!pending) return;
+    if (reply.diagnostics) pending.diagnostics?.push(reply.diagnostics);
     if (reply.event === "start") {
       if (pending.controller) throw new Error("Duplicate stream start");
       const stream = new ReadableStream<Uint8Array>({

@@ -1,3 +1,4 @@
+import { assertValidEvaluation } from "../benchmark/evaluator.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { EvaluationSummary, SearchExperience, SearchTreeNode } from "../domain.js";
@@ -92,5 +93,7 @@ async function readEvaluation(directory: string, id: string, score: number): Pro
   const statistics = JSON.parse(await readFile(join(directory, "evaluations", id, "summary.json"), "utf8")) as Omit<EvaluationSummary, "results">;
   const results = await jsonLines<EvaluationSummary["results"][number]>(join(directory, "evaluations", id, "samples.jsonl"));
   if (results.length !== statistics.examples * statistics.repeats || statistics.score !== score) throw new Error("Historical validation is incomplete or differs from its recorded score");
-  return { ...statistics, results };
+  const evaluation = { ...statistics, results };
+  assertValidEvaluation(evaluation);
+  return evaluation;
 }

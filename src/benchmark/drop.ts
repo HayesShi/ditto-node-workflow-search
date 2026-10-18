@@ -39,7 +39,9 @@ function loadedDrop(split: "validate" | "test", rows: readonly DropRow[], identi
   const tasks = Object.freeze(rows.map((row) => row.task));
   const scorer: PrivateScorer = {
     async score(taskId, prediction): Promise<ScoreEvidence> {
-      return scoreDropAnswer(referenceFor(references, taskId), prediction);
+      const reference = referenceFor(references, taskId);
+      if (!reference.split("|").some(part => part.trim())) throw new Error(`Invalid DROP reference for ${taskId}`);
+      return scoreDropAnswer(reference, prediction);
     },
     expectedLabel(taskId): string {
       return referenceFor(references, taskId);
