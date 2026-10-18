@@ -1,7 +1,9 @@
 /** Shared request protocol. Actual run sizes/repeats are frozen in manifest.search. */
 export const GENERATION = Object.freeze({ temperature: 0, maxTokens: 393_216 });
 export const PROTOCOL = Object.freeze({
-  id: "ditto-topology-flash-20261019-v8-output-contract",
+  id: "ditto-topology-flash-20261019-v9-overnight-recovery",
+  searchInfrastructureFailurePolicy: 'stop-without-consuming-search-round',
+  searchResumeBoundary: 'zero-after-baseline-supported',
   mathOutputContract: 'MFlow@437040f/src/prompts.ts#AGENT_PROMPT-boxed-answer',
   reflectionRepairPolicy: 'syntax-local-then-bounded-isolated-content-preserving-repair-v1',
   automationArgumentPolicy: 'trello-add-label-object-body-v1',

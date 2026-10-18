@@ -89,7 +89,7 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
     dataset: rawDataset,
     dataDir: resolve(cwd, values.get("data-dir") ?? "data/datasets"),
     ...(runDir ? { runDir: resolve(cwd, runDir) } : {}),
-    ...(resumeDir ? { resumeDir: resolve(cwd, resumeDir), resumeRound: integer(resumeRound!, "resume-round", 1, 1_000) } : {}),
+    ...(resumeDir ? { resumeDir: resolve(cwd, resumeDir), resumeRound: integer(resumeRound!, "resume-round", 0, 1_000) } : {}),
     outputRoot: resolve(cwd, values.get("output-root") ?? "runs"),
     searchLimit: integer(values.get("search-limit") ?? "0", "search-limit", 0, 100_000),
     testLimit: integer(values.get("test-limit") ?? "0", "test-limit", 0, 100_000),

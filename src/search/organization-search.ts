@@ -25,6 +25,10 @@ export interface OrganizationProposalRequest {
   readonly experiences: readonly SearchExperience[];
   readonly accept: (spec: OrganizationSpec) => void;
 }
+/** Exhausted responses that were received successfully but are not legal candidates. */
+export class OrganizationProposalRejectedError extends Error {
+  constructor(message: string) { super(message); this.name = 'OrganizationProposalRejectedError'; }
+}
 export class OrganizationProposer {
   constructor(readonly runtime: DittoRuntime, readonly model: ModelConfig) {}
   async propose(request: OrganizationProposalRequest): Promise<OrganizationSpec> {
@@ -38,7 +42,10 @@ export class OrganizationProposer {
       const result = await this.runtime.run(proposal,{request:JSON.stringify({catalog:nodeCatalog(parent.dataset),parent,
         experiences:request.experiences.slice(-8).map(e=>({searchNodeId:e.searchNodeId,parentSearchNodeId:e.parentSearchNodeId,organization:e.organization,score:e.score,delta:e.delta,outcome:e.outcome,failures:e.failures.slice(0,3).map(f=>({caseId:f.caseId,prediction:f.prediction.slice(0,600)}))})),rejections})});
       const out = result.proposal;
-      if (out.status !== 'success' || !out.output || ['error','cancelled'].includes(out.output.finishReason)) throw new Error(`Optimizer request failed: ${out.status === 'success' ? out.output?.finishReason : out.error?.message}`);
+      if (out.status !== 'success' || !out.output || ['error','cancelled'].includes(out.output.finishReason)) {
+        const detail = out.error ? `${out.error.code}: ${out.error.message}` : out.output?.finishReason ?? 'missing model output';
+        throw new Error(`Optimizer request failed [${out.status}]: ${detail}`, {cause: out.error ?? out.output?.finishReason});
+      }
       const content = typeof out.output.message.content === 'string' ? out.output.message.content : JSON.stringify(out.output.message.content);
       try {
         const spec: OrganizationSpec = JSON.parse(content);
@@ -46,7 +53,7 @@ export class OrganizationProposer {
         request.accept(spec); return spec;
       } catch(error) { rejections.push({content,error:error instanceof Error?error.message:String(error)}); }
     }
-    throw new Error(`Optimizer organization rejected: ${rejections.at(-1)?.error}`);
+    throw new OrganizationProposalRejectedError(`Optimizer organization rejected: ${rejections.at(-1)?.error}`);
   }
 }
 
@@ -113,7 +120,12 @@ export class OrganizationWorkflowSearch {
             if(Object.values(plans).some(p=>organizationHash(p.organization!)===organizationHash(spec)))throw new Error('Duplicate organization');
           }});
           plan=buildOrganizationPlan(spec,`search-${String(index++).padStart(3,'0')}`);
-        }catch(error){failures++;completed++;await emit({type:'proposal-failed',round:completed,error:String(error)});await save();continue;}
+        }catch(error){
+          // Service/runtime faults are not rejected candidates. Leave the last
+          // completed boundary intact so recovery can retry without spending a round.
+          if (!(error instanceof OrganizationProposalRejectedError)) throw error;
+          failures++;completed++;await emit({type:'proposal-failed',round:completed,error:String(error)});await save();continue;
+        }
         pending={plan,parentId:parent.id}; await save();
       }
       // Evaluation faults stop this run with its exact candidate pending, never score it zero.
