@@ -1,10 +1,18 @@
-/** Frozen settings for the DeepSeek Flash MATH comparison. */
-export const GENERATION = Object.freeze({ temperature: 0.2, topP: 1, maxTokens: 16_384 });
+import { EXPERIMENT_EXECUTION, EXPERIMENT_GENERATION, EXPERIMENT_PROVIDER_OPTIONS } from "./model-profile.js";
+
+/** New runs share this policy; historical manifests remain immutable. */
+export const GENERATION = EXPERIMENT_GENERATION;
 export const PROTOCOL = Object.freeze({
-  id: "aflow-flash-math-v2",
+  id: "mflow-fixed-flash-v3",
   generation: GENERATION,
-  thinking: "enabled (provider default in both arms)",
-  reasoningEffort: "high (provider default in both arms)",
+  providerOptions: EXPERIMENT_PROVIDER_OPTIONS,
+  thinking: "disabled",
+  reasoningEffort: "omitted",
+  topP: "omitted (provider default)",
+  stream: true,
+  execution: EXPERIMENT_EXECUTION,
+  splitProtocol: "aflow-fixed-v1",
+  baselineCommit: "9279d7d91bbce039656f5cd3a6bb539cea75fe85",
   searchRounds: 20,
   validationRepeats: 5,
   testRepeats: 3,

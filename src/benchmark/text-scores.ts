@@ -1,18 +1,18 @@
 import type { ScoreEvidence } from "../domain.js";
 import { scoreMathAnswer } from "./math-score.js";
 
-const ASCII_PUNCTUATION = new Set(`!"#$%&'()*+,-./:;<=>?@[\\]^_\`{|}~`);
-
 export function normalizeDropAnswer(value: string): string {
-  const lower = value.toLocaleLowerCase("en-US");
-  const withoutPunctuation = [...lower].filter((character) => !ASCII_PUNCTUATION.has(character)).join("");
-  return withoutPunctuation.replace(/\b(?:a|an|the)\b/g, " ").replace(/\s+/g, " ").trim();
+  // MFlow aflowDropScore, pinned at 9279d7d91bbce039656f5cd3a6bb539cea75fe85.
+  // In this protocol punctuation is deleted, and numbers are not canonicalized.
+  return value.toLowerCase()
+    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, "")
+    .replace(/\b(a|an|the)\b/g, " ").trim().split(/\s+/).filter(Boolean).join(" ");
 }
 
 /** AFlow-compatible maximum token-F1 across pipe-separated gold/prediction alternatives. */
 export function scoreDropAnswer(reference: string, prediction: string): ScoreEvidence {
   const expectedAlternatives = reference.split("|").map((part) => part.trim()).filter(Boolean);
-  const predictionAlternatives = prediction.split("|").map((part) => part.trim()).filter(Boolean);
+  const predictionAlternatives = prediction.split("|").map((part) => part.trim());
   let best = 0;
   let bestExpected = expectedAlternatives[0] ?? "";
   let bestPrediction = predictionAlternatives[0] ?? "";
@@ -33,7 +33,7 @@ export function scoreDropAnswer(reference: string, prediction: string): ScoreEvi
     normalizedExpected: normalizeDropAnswer(bestExpected),
     normalizedPrediction: normalizeDropAnswer(bestPrediction),
     method: "drop-token-f1-max-alternatives",
-    details: Object.freeze({ alternatives: expectedAlternatives.length }),
+    details: Object.freeze({ alternatives: expectedAlternatives.length, exactMatch: best === 1 ? 1 : 0 }),
   });
 }
 
@@ -46,14 +46,13 @@ export function extractLastNumber(value: string): number | undefined {
 
 export function scoreGsm8kAnswer(reference: string, prediction: string): ScoreEvidence {
   const expectedNumber = extractLastNumber(reference);
-  if (expectedNumber === undefined) throw new Error("GSM8K reference does not contain a number");
   const predictedNumber = extractLastNumber(prediction);
-  const matched = predictedNumber !== undefined && Math.abs(expectedNumber - predictedNumber) <= 1e-6;
+  const matched = expectedNumber !== undefined && predictedNumber !== undefined && Math.abs(expectedNumber - predictedNumber) <= 1e-6;
   return Object.freeze({
     score: matched ? 1 : 0,
     expected: reference,
     prediction,
-    normalizedExpected: String(expectedNumber),
+    normalizedExpected: expectedNumber === undefined ? "" : String(expectedNumber),
     normalizedPrediction: predictedNumber === undefined ? "" : String(predictedNumber),
     method: "gsm8k-last-number-exact",
   });
@@ -75,16 +74,15 @@ export function scoreCompetitionMathAnswer(reference: string, prediction: string
 function tokenF1(expected: string, prediction: string): number {
   const expectedTokens = expected ? expected.split(" ") : [];
   const predictionTokens = prediction ? prediction.split(" ") : [];
-  if (!expectedTokens.length || !predictionTokens.length) return expectedTokens.length === predictionTokens.length ? 1 : 0;
+  // AFlow awards no credit without a shared token, including two empty answers.
+  if (!expectedTokens.length || !predictionTokens.length) return 0;
 
   const expectedCounts = counts(expectedTokens);
   const predictionCounts = counts(predictionTokens);
   let common = 0;
   for (const [token, amount] of expectedCounts) common += Math.min(amount, predictionCounts.get(token) ?? 0);
   if (!common) return 0;
-  const precision = common / predictionTokens.length;
-  const recall = common / expectedTokens.length;
-  return (2 * precision * recall) / (precision + recall);
+  return 2 * common / (expectedTokens.length + predictionTokens.length);
 }
 
 function counts(tokens: readonly string[]): Map<string, number> {

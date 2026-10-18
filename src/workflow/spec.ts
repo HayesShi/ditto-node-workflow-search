@@ -13,6 +13,7 @@ import {
   type WorkflowNodeSpec,
 } from "../domain.js";
 import { GENERATION } from "../protocol.js";
+import { EXPERIMENT_EXECUTION } from "../model-profile.js";
 
 const GRAPH_ORDER = ["prepare", "solve", "refine"] as const;
 const NODE_ID = /^[a-z][a-z0-9-]{0,63}$/;
@@ -51,7 +52,7 @@ export function createInitialTrajectoryNode(instruction = "Solve the task carefu
       strategy: "cot",
       options: Object.freeze({ rounds: 1 }),
       generation: GENERATION,
-      maxSteps: 16,
+      maxSteps: EXPERIMENT_EXECUTION.maxSteps,
     }),
   });
 }
@@ -140,7 +141,7 @@ export function validateNode(node: WorkflowNodeSpec): void {
     if (!node.config.instruction.trim() || node.config.instruction.length > 4_000) throw new Error("Invalid TRAJECTORY instruction");
     if (!STRATEGIES.includes(node.config.strategy)) throw new Error(`Unsupported trajectory strategy: ${node.config.strategy}`);
     validateStrategyOptions(node.config.strategy, node.config.options);
-    integer(node.config.maxSteps, "maxSteps", 1, 64);
+    integer(node.config.maxSteps, "maxSteps", 1, Number.MAX_SAFE_INTEGER);
     return;
   }
   if (node.type === "INFER.REASONING.SAMPLE") {
@@ -196,7 +197,7 @@ export function materializeAgentPlan(
     loop: Object.freeze({
       entryGraphId: activeGraphs[0]!.id,
       transitions: Object.freeze({ ...chosenTransitions }),
-      maxGraphRuns: calculateMaximumGraphRuns(activeGraphs.length, chosenTransitions),
+      maxGraphRuns: EXPERIMENT_EXECUTION.maxIterations,
     }),
     outputNodeId: outputNode.id,
   });
@@ -241,14 +242,6 @@ function validateTransitions(graphIds: readonly string[], transitions: Readonly<
   for (const source of Object.keys(transitions)) if (!graphs.has(source)) throw new Error(`Transition exists for unknown Graph: ${source}`);
 }
 
-function calculateMaximumGraphRuns(graphCount: number, transitions: Readonly<Record<string, GraphTransition>>): number {
-  const repeatAllowance = Object.values(transitions).reduce(
-    (sum, transition) => sum + (transition.kind === "repeat" ? transition.maxVisits : 0),
-    0,
-  );
-  return Math.max(graphCount, graphCount + repeatAllowance);
-}
-
 function freezeNode<T extends WorkflowNodeSpec>(node: T): T {
   return Object.freeze({
     ...node,
@@ -259,7 +252,7 @@ function freezeNode<T extends WorkflowNodeSpec>(node: T): T {
 
 function validateGeneration(value: { readonly temperature: number; readonly maxTokens: number }): void {
   finite(value.temperature, "temperature", 0, 2);
-  integer(value.maxTokens, "maxTokens", 64, 32_768);
+  integer(value.maxTokens, "maxTokens", 64, GENERATION.maxTokens);
 }
 
 function validateStrategyOptions(strategy: StrategyName, options: Readonly<Record<string, number>>): void {

@@ -2,6 +2,14 @@
 
 这是一个独立的 TypeScript 实验仓库：只使用已发布的 `@codesoul-co/ditto` npm 包，通过数据集反馈搜索更好的 Agent 结构，不修改 Ditto 源码或 `node_modules`。
 
+## 当前正式协议（DROP / GSM8K）
+
+所有新实验统一使用 DeepSeek 官方 `deepseek-flash`：关闭 thinking、temperature=0、max_tokens=393216、n=1、text 模式、上游流式返回；不传 top_p 或 reasoning_effort。Trajectory 步数与执行 Loop 使用 Number.MAX_SAFE_INTEGER，不设单题累计 token 或工具调用上限。
+
+正式入口按 MFlow `aflow-fixed-v1` 加载完整固定样本及原始顺序，校验原始文件 SHA-256 与数量；禁止分层抽样，`--search-limit` / `--test-limit` 必须为 0。DROP 为 200/800，GSM8K 为 264/1055；保留并披露 DROP 五对已知重复题干。MFlow 的划分规则优先。
+
+DROP/GSM8K 使用固定 MFlow 种子提示词和首轮输入格式，运行记录与检查点保存提示词来源及哈希。旧参数或旧评分的运行不能直接恢复到新协议。细节、评分口径及运行命令见 [正式协议说明](docs/drop-gsm8k-protocol.md)。
+
 > Experimental / not Ditto Core. 当前仓库保持 `private: true`，表示禁止误发 npm；GitHub 仓库本身可以公开审查。
 
 ## 核心定义
@@ -154,7 +162,7 @@ runs/<dataset>/<run-id>/
     └── samples.jsonl
 ```
 
-manifest 记录 Ditto 版本、模型名、非敏感 endpoint、数据文件哈希、抽样 ID、搜索设置和评分版本，不记录 API Key 或授权头。`runs/` 默认不进入 Git。
+manifest 记录 Ditto 版本、模型名、非敏感 endpoint、数据文件哈希、固定样本 ID、搜索设置和评分版本，不记录 API Key 或授权头。`runs/` 默认不进入 Git。
 
 为贴合 AFlow/OpenAI SDK 行为，瞬时 Provider 故障最多发起 3 次 HTTP 尝试，完整工作流对任意异常最多执行 5 次、间隔 1 秒；最终仍失败时，汇总通过 `timeoutRuns` 与 `wrongRuns` 区分基础设施超时和正常完成但答错。
 

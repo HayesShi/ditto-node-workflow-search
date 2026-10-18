@@ -1,10 +1,10 @@
-import { join } from "node:path";
 import type { BenchmarkTask, ScoreEvidence } from "../domain.js";
 import { evaluateTasks } from "./evaluator.js";
-import { readJsonLines, requireRecord, requireString, stableId } from "./io.js";
-import { lengthBucket, stratifiedSample } from "./sampling.js";
+import { readBenchmarkSplit } from "./fixed-splits.js";
+import { requireRecord, requireString, stableId } from "./io.js";
+import { lengthBucket } from "./sampling.js";
 import { scoreDropAnswer } from "./text-scores.js";
-import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark, PrivateScorer } from "./types.js";
+import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkIdentity, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark, PrivateScorer } from "./types.js";
 
 interface DropRow {
   readonly task: BenchmarkTask;
@@ -14,29 +14,27 @@ interface DropRow {
 export const dropAdapter: BenchmarkAdapter = Object.freeze({
   dataset: "drop",
   async load(options: BenchmarkLoadOptions): Promise<LoadedBenchmark> {
-    const path = join(options.dataDir, `drop_${options.split}.jsonl`);
-    const rows = await readJsonLines(path, (value, row): DropRow => {
+    const { rows, identity } = await readBenchmarkSplit("drop", options, (value, row, path): DropRow => {
       const raw = requireRecord(value, path, row);
       const prompt = requireString(raw.context, "context", path, row);
       const reference = requireString(raw.ref_text, "ref_text", path, row);
       const sourceId = typeof raw.id === "string" || typeof raw.id === "number" ? String(raw.id) : stableId("row", prompt);
       return Object.freeze({
         task: Object.freeze({
-          id: `drop:${options.split}:${sourceId}`,
+          id: `drop:${sourceId}`,
           dataset: "drop",
           prompt,
-          outputInstruction: "Return only the shortest answer supported by the passage. Use | only for genuinely alternative answers.",
+          outputInstruction: "",
           metadata: Object.freeze({ split: options.split, sourceId, lengthBucket: lengthBucket(prompt.length) }),
         }),
         reference,
       });
-    });
-    const selected = stratifiedSample(rows, options.limit ?? 0, options.seed ?? 42, (row) => String(row.task.metadata.lengthBucket));
-    return loadedDrop(options.split, selected);
+    }, (row) => String(row.task.metadata.lengthBucket));
+    return loadedDrop(options.split, rows, identity);
   },
 });
 
-function loadedDrop(split: "validate" | "test", rows: readonly DropRow[]): LoadedBenchmark {
+function loadedDrop(split: "validate" | "test", rows: readonly DropRow[], identity: BenchmarkIdentity): LoadedBenchmark {
   const references = new Map(rows.map((row) => [row.task.id, row.reference]));
   const tasks = Object.freeze(rows.map((row) => row.task));
   const scorer: PrivateScorer = {
@@ -51,6 +49,7 @@ function loadedDrop(split: "validate" | "test", rows: readonly DropRow[]): Loade
     dataset: "drop",
     split,
     tasks,
+    identity,
     evaluate: (runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) => evaluateTasks(tasks, scorer, runner, options),
   });
 }

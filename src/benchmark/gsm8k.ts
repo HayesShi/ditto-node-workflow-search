@@ -1,10 +1,10 @@
-import { join } from "node:path";
 import type { BenchmarkTask, ScoreEvidence } from "../domain.js";
 import { evaluateTasks } from "./evaluator.js";
-import { readJsonLines, requireRecord, requireString, stableId } from "./io.js";
-import { lengthBucket, stratifiedSample } from "./sampling.js";
+import { readBenchmarkSplit } from "./fixed-splits.js";
+import { requireRecord, requireString, stableId } from "./io.js";
+import { lengthBucket } from "./sampling.js";
 import { scoreGsm8kAnswer } from "./text-scores.js";
-import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark, PrivateScorer } from "./types.js";
+import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkIdentity, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark, PrivateScorer } from "./types.js";
 
 interface Gsm8kRow {
   readonly task: BenchmarkTask;
@@ -14,29 +14,27 @@ interface Gsm8kRow {
 export const gsm8kAdapter: BenchmarkAdapter = Object.freeze({
   dataset: "gsm8k",
   async load(options: BenchmarkLoadOptions): Promise<LoadedBenchmark> {
-    const path = join(options.dataDir, `gsm8k_${options.split}.jsonl`);
-    const rows = await readJsonLines(path, (value, row): Gsm8kRow => {
+    const { rows, identity } = await readBenchmarkSplit("gsm8k", options, (value, row, path): Gsm8kRow => {
       const raw = requireRecord(value, path, row);
       const prompt = requireString(raw.question, "question", path, row);
       const reference = requireString(raw.answer, "answer", path, row);
       const sourceId = typeof raw.id === "string" || typeof raw.id === "number" ? String(raw.id) : stableId("row", prompt);
       return Object.freeze({
         task: Object.freeze({
-          id: `gsm8k:${options.split}:${sourceId}`,
+          id: `gsm8k:${sourceId}`,
           dataset: "gsm8k",
           prompt,
-          outputInstruction: "Solve the word problem and put the final numeric answer at the end of the response.",
+          outputInstruction: "",
           metadata: Object.freeze({ split: options.split, sourceId, lengthBucket: lengthBucket(prompt.length) }),
         }),
         reference,
       });
-    });
-    const selected = stratifiedSample(rows, options.limit ?? 0, options.seed ?? 42, (row) => String(row.task.metadata.lengthBucket));
-    return loadedGsm8k(options.split, selected);
+    }, (row) => String(row.task.metadata.lengthBucket));
+    return loadedGsm8k(options.split, rows, identity);
   },
 });
 
-function loadedGsm8k(split: "validate" | "test", rows: readonly Gsm8kRow[]): LoadedBenchmark {
+function loadedGsm8k(split: "validate" | "test", rows: readonly Gsm8kRow[], identity: BenchmarkIdentity): LoadedBenchmark {
   const references = new Map(rows.map((row) => [row.task.id, row.reference]));
   const tasks = Object.freeze(rows.map((row) => row.task));
   const scorer: PrivateScorer = {
@@ -51,6 +49,7 @@ function loadedGsm8k(split: "validate" | "test", rows: readonly Gsm8kRow[]): Loa
     dataset: "gsm8k",
     split,
     tasks,
+    identity,
     evaluate: (runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) => evaluateTasks(tasks, scorer, runner, options),
   });
 }

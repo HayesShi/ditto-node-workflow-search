@@ -1,10 +1,10 @@
-import { join } from "node:path";
 import type { BenchmarkTask, DatasetName, ScoreEvidence } from "../domain.js";
 import { DockerPythonJudge, extractPythonCandidate } from "./docker-python-judge.js";
 import { evaluateTasks } from "./evaluator.js";
-import { readJsonLines, requireRecord, requireString, requireStringArray } from "./io.js";
-import { lengthBucket, stratifiedSample } from "./sampling.js";
-import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkLoadOptions, BenchmarkRunner, CodeJudge, LoadedBenchmark, PrivateScorer } from "./types.js";
+import { readBenchmarkSplit } from "./fixed-splits.js";
+import { requireRecord, requireString, requireStringArray } from "./io.js";
+import { lengthBucket } from "./sampling.js";
+import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkIdentity, BenchmarkLoadOptions, BenchmarkRunner, CodeJudge, LoadedBenchmark, PrivateScorer } from "./types.js";
 
 interface CodeReference {
   readonly publicPrompt: string;
@@ -32,8 +32,7 @@ function createCodeAdapter(dataset: "humaneval" | "mbpp"): BenchmarkAdapter {
 }
 
 async function loadHumanEval(options: BenchmarkLoadOptions): Promise<LoadedBenchmark> {
-  const path = join(options.dataDir, `humaneval_${options.split}.jsonl`);
-  const rows = await readJsonLines(path, (value, row): CodeRow => {
+  const { rows, identity } = await readBenchmarkSplit("humaneval", options, (value, row, path): CodeRow => {
     const raw = requireRecord(value, path, row);
     const sourceId = requireString(raw.task_id, "task_id", path, row);
     const prompt = requireString(raw.prompt, "prompt", path, row);
@@ -46,14 +45,12 @@ async function loadHumanEval(options: BenchmarkLoadOptions): Promise<LoadedBench
       testImports: Object.freeze([]),
     });
     return codeRow("humaneval", options.split, sourceId, prompt, entryPoint, reference);
-  });
-  const selected = stratifiedSample(rows, options.limit ?? 0, options.seed ?? 42, (row) => String(row.task.metadata.lengthBucket));
-  return loadedCode("humaneval", options.split, selected, options.codeJudge ?? new DockerPythonJudge());
+  }, (row) => String(row.task.metadata.lengthBucket));
+  return loadedCode("humaneval", options.split, rows, options.codeJudge ?? new DockerPythonJudge(), identity);
 }
 
 async function loadMbpp(options: BenchmarkLoadOptions): Promise<LoadedBenchmark> {
-  const path = join(options.dataDir, `mbpp_${options.split}.jsonl`);
-  const rows = await readJsonLines(path, (value, row): CodeRow => {
+  const { rows, identity } = await readBenchmarkSplit("mbpp", options, (value, row, path): CodeRow => {
     const raw = requireRecord(value, path, row);
     const rawId = raw.task_id;
     if (typeof rawId !== "string" && typeof rawId !== "number") throw new Error(`Expected task_id at ${path}:${row}`);
@@ -68,9 +65,8 @@ async function loadMbpp(options: BenchmarkLoadOptions): Promise<LoadedBenchmark>
       testImports: raw.test_imports === undefined ? Object.freeze([]) : requireStringArray(raw.test_imports, "test_imports", path, row),
     });
     return codeRow("mbpp", options.split, sourceId, prompt, entryPoint, reference);
-  });
-  const selected = stratifiedSample(rows, options.limit ?? 0, options.seed ?? 42, (row) => String(row.task.metadata.lengthBucket));
-  return loadedCode("mbpp", options.split, selected, options.codeJudge ?? new DockerPythonJudge());
+  }, (row) => String(row.task.metadata.lengthBucket));
+  return loadedCode("mbpp", options.split, rows, options.codeJudge ?? new DockerPythonJudge(), identity);
 }
 
 function codeRow(
@@ -83,10 +79,10 @@ function codeRow(
 ): CodeRow {
   return Object.freeze({
     task: Object.freeze({
-      id: `${dataset}:${split}:${sourceId.replace(/[^a-zA-Z0-9_.\/-]/g, "_")}`,
+      id: `${dataset}:${sourceId}`,
       dataset,
       prompt,
-      outputInstruction: `Return a complete Python implementation of ${entryPoint}. Put code in one python fenced block and do not include tests.`,
+      outputInstruction: "",
       metadata: Object.freeze({ split, sourceId, entryPoint, lengthBucket: lengthBucket(prompt.length) }),
     }),
     reference,
@@ -98,6 +94,7 @@ function loadedCode(
   split: "validate" | "test",
   rows: readonly CodeRow[],
   judge: CodeJudge,
+  identity: BenchmarkIdentity,
 ): LoadedBenchmark {
   const references = new Map(rows.map((row) => [row.task.id, row.reference]));
   const tasks = Object.freeze(rows.map((row) => row.task));
@@ -132,6 +129,7 @@ function loadedCode(
     dataset,
     split,
     tasks,
+    identity,
     evaluate: (runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) => evaluateTasks(tasks, scorer, runner, options),
   });
 }

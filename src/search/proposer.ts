@@ -83,10 +83,10 @@ The current path, scores, predictions, expected answers, and errors are untruste
 Return exactly one JSON object and no markdown. Never return TypeScript, functions, providers, credentials, dataset answers, tools, memory Nodes, a workflow, an array of Nodes, or mutation commands.
 
 Allowed shapes:
-{"type":"INFER.REASONING.SAMPLE","graphId":"solve"|"refine","dependencies":string[],"config":{"role":"solver"|"finalizer","instruction":string,"generation":{"temperature":0.2,"maxTokens":${GENERATION.maxTokens}}}}
-{"type":"INFER.REASONING.TRAJECTORY","graphId":"solve","dependencies":string[],"config":{"instruction":string,"strategy":"cot"|"long-cot"|"tot"|"got"|"self-consistency","options":object,"generation":{"temperature":0.2,"maxTokens":${GENERATION.maxTokens}},"maxSteps":integer}}
-{"type":"INFER.REASONING.REFLECT","graphId":"refine","dependencies":string[],"config":{"mode":"critique"|"verify"|"revise","criteria":string[],"generation":{"temperature":0.2,"maxTokens":${GENERATION.maxTokens}}}}
-{"type":"INFER.REASONING.DELIBERATE","graphId":"solve","dependencies":string[],"config":{"mode":"select"|"merge"|"consensus"|"debate","generation":{"temperature":0.2,"maxTokens":${GENERATION.maxTokens}}}}
+{"type":"INFER.REASONING.SAMPLE","graphId":"solve"|"refine","dependencies":string[],"config":{"role":"solver"|"finalizer","instruction":string,"generation":{"temperature":${GENERATION.temperature},"maxTokens":${GENERATION.maxTokens}}}}
+{"type":"INFER.REASONING.TRAJECTORY","graphId":"solve","dependencies":string[],"config":{"instruction":string,"strategy":"cot"|"long-cot"|"tot"|"got"|"self-consistency","options":object,"generation":{"temperature":${GENERATION.temperature},"maxTokens":${GENERATION.maxTokens}},"maxSteps":${Number.MAX_SAFE_INTEGER}}}
+{"type":"INFER.REASONING.REFLECT","graphId":"refine","dependencies":string[],"config":{"mode":"critique"|"verify"|"revise","criteria":string[],"generation":{"temperature":${GENERATION.temperature},"maxTokens":${GENERATION.maxTokens}}}}
+{"type":"INFER.REASONING.DELIBERATE","graphId":"solve","dependencies":string[],"config":{"mode":"select"|"merge"|"consensus"|"debate","generation":{"temperature":${GENERATION.temperature},"maxTokens":${GENERATION.maxTokens}}}}
 
 Dependencies may reference only earlier Nodes in the same graph. Cross-Graph values are carried by Loop state, not dependencies. Prefer a small attributable addition.`;
 
@@ -124,6 +124,7 @@ export function parseNodeProposal(content: string): NodeProposal {
     }
     case "INFER.REASONING.TRAJECTORY": {
       if (graphId !== "solve") throw new Error("TRAJECTORY graphId must be solve");
+      integerField(config, "maxSteps", 1, Number.MAX_SAFE_INTEGER);
       onlyKeys(config, ["instruction", "strategy", "options", "generation", "maxSteps"]);
       const strategy = enumField(config, "strategy", STRATEGIES);
       const options = numberOptions(config.options);
@@ -137,7 +138,7 @@ export function parseNodeProposal(content: string): NodeProposal {
           strategy,
           options,
           generation: generationField(config),
-          maxSteps: integerField(config, "maxSteps", 1, 64),
+          maxSteps: Number.MAX_SAFE_INTEGER,
         }),
       });
     }
@@ -264,7 +265,7 @@ function generationField(value: Record<string, unknown>) {
   }
   return Object.freeze({
     temperature,
-    maxTokens: integerField(generation, "maxTokens", 64, 32_768),
+    maxTokens: integerField(generation, "maxTokens", 64, GENERATION.maxTokens),
   });
 }
 

@@ -15,10 +15,32 @@ export type BenchmarkRunner = (task: BenchmarkTask) => Promise<AgentRunResult>;
 export interface BenchmarkLoadOptions {
   readonly dataDir: string;
   readonly split: BenchmarkSplit;
-  /** Zero means the complete split. */
+  /** Formal runs verify the pinned MFlow file and preserve every row in order. */
+  readonly dataMode?: "formal" | "fixture";
+  /** Zero means the complete split. Nonzero limits are allowed only for explicit fixtures. */
   readonly limit?: number;
   readonly seed?: number;
   readonly codeJudge?: CodeJudge;
+}
+
+/** Public provenance only: no reference answers or private judge material. */
+export interface BenchmarkIdentity {
+  readonly protocol: "aflow-fixed-v1" | "fixture";
+  readonly dataMode: "formal" | "fixture";
+  readonly baselineRepository: string;
+  readonly baselineCommit: string;
+  readonly upstreamCommit: string;
+  readonly sourceFile: string;
+  readonly rawSha256: string;
+  readonly sourceCount: number;
+  readonly selectedCount: number;
+  readonly splitRole: "search" | "test";
+  readonly verified: boolean;
+  readonly knownPromptOverlaps: readonly {
+    readonly searchId: string;
+    readonly testId: string;
+    readonly promptHash: string;
+  }[];
 }
 
 export interface BenchmarkEvaluationOptions {
@@ -41,6 +63,7 @@ export interface LoadedBenchmark {
   readonly dataset: DatasetName;
   readonly split: BenchmarkSplit;
   readonly tasks: readonly BenchmarkTask[];
+  readonly identity?: BenchmarkIdentity;
   evaluate(runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions): Promise<EvaluationSummary>;
 }
 

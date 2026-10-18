@@ -49,7 +49,7 @@ test("code adapter keeps tests private and delegates to the injected judge", asy
       canonical_solution: "    return x",
       test: "def check(candidate):\n    assert candidate(1) == 1",
     })}\n`, "utf8");
-    const loaded = await humanevalAdapter.load({ dataDir: directory, split: "validate", codeJudge: judge });
+    const loaded = await humanevalAdapter.load({ dataMode: "fixture", dataDir: directory, split: "validate", codeJudge: judge });
     assert.equal(JSON.stringify(loaded.tasks).includes("candidate(1)"), false);
     const result: AgentRunResult = {
       answer: "```python\ndef answer(x):\n    return x\n```",
@@ -78,7 +78,7 @@ test("evaluation reports monotonic live progress without exposing judge referenc
       canonical_solution: "    return x",
       test: "def check(candidate):\n    assert candidate(1) == 1",
     })}\n`, "utf8");
-    const loaded = await humanevalAdapter.load({
+    const loaded = await humanevalAdapter.load({ dataMode: "fixture",
       dataDir: directory,
       split: "validate",
       codeJudge: { async judge() { return { passed: true, diagnostics: "ok", durationMs: 1 }; } },

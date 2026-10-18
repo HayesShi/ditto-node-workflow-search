@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import type { AgentPlanSpec, DatasetName, WorkflowNodeSpec } from "../domain.js";
 import { DATASETS } from "../domain.js";
 import { materializeAgentPlan } from "../workflow/spec.js";
+import { assertBaselinePromptProfile } from "../benchmark/baseline-prompts.js";
 
 export interface WorkflowCheckpoint {
   readonly schemaVersion: 1;
@@ -17,6 +18,7 @@ export interface WorkflowCheckpoint {
   readonly protocol: unknown;
   readonly metricProfile: string;
   readonly dittoVersion: string;
+  readonly promptProfile?: unknown;
 }
 
 export const artifactHash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -30,12 +32,14 @@ export function checkpointForPlan(plan: AgentPlanSpec, manifest: Record<string, 
     schemaVersion: 1, searchNodeId: plan.leafSearchNodeId, plan, planHash: artifactHash(plan),
     dataset: manifest.dataset as DatasetName, model: manifest.model as string, endpoint: manifest.endpoint as string,
     protocol: manifest.protocol, metricProfile: manifest.metricProfile as string, dittoVersion: manifest.dittoVersion as string,
+    ...(manifest.promptProfile ? { promptProfile: manifest.promptProfile } : {}),
   };
   validateCheckpoint(checkpoint);
   return checkpoint;
 }
 
 export function validateCheckpoint(checkpoint: WorkflowCheckpoint): void {
+  assertBaselinePromptProfile(checkpoint.dataset, checkpoint.promptProfile);
   if (checkpoint.schemaVersion !== 1 || !/^search-\d+$/.test(checkpoint.searchNodeId)) throw new Error("Invalid checkpoint identity");
   if (artifactHash(checkpoint.plan) !== checkpoint.planHash) throw new Error("Checkpoint hash mismatch");
   const rebuilt = materializeAgentPlan(checkpoint.searchNodeId, checkpoint.plan.nodes);

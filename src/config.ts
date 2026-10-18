@@ -20,6 +20,9 @@ export function loadProviderSettings(env: NodeJS.ProcessEnv = process.env): Prov
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new Error("CODE_SOUL_BASE_URL must be a plain HTTP(S) URL without credentials, query, or fragment");
   }
+  if (model !== "deepseek-flash" || url.origin !== "https://api.deepseek.com" || !["", "/", "/v1", "/v1/"].includes(url.pathname)) {
+    throw new Error("The fixed experiment requires deepseek-flash on the official https://api.deepseek.com endpoint");
+  }
   return Object.freeze({ baseUrl: url.href.replace(/\/$/, ""), model, apiKey, concurrency, timeoutMs });
 }
 
@@ -72,6 +75,9 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
   }
   const rawDataset = values.get("dataset") ?? "math";
   if (!isDataset(rawDataset)) throw new Error(`Unsupported dataset: ${rawDataset}`);
+  for (const flag of ["search-limit", "test-limit"]) {
+    if (values.has(flag) && values.get(flag) !== "0") throw new Error(`${flag} must be 0: formal evaluation uses the complete pinned MFlow split without sampling`);
+  }
   const runDir = values.get("run-dir");
   const resumeDir = values.get("resume-dir");
   const resumeRound = values.get("resume-round");

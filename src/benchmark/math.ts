@@ -1,10 +1,10 @@
-import { join } from "node:path";
+import { createHash } from "node:crypto";
 import type { BenchmarkTask } from "../domain.js";
 import { evaluateTasks } from "./evaluator.js";
 import { AFlowMathScorer } from "./aflow-math-scorer.js";
-import { readJsonLines, requireRecord, requireString, stableId } from "./io.js";
-import { stratifiedSample } from "./sampling.js";
-import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark } from "./types.js";
+import { readBenchmarkSplit } from "./fixed-splits.js";
+import { requireRecord, requireString } from "./io.js";
+import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkIdentity, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark } from "./types.js";
 
 interface MathRow {
   readonly task: BenchmarkTask;
@@ -14,8 +14,7 @@ interface MathRow {
 export const mathAdapter: BenchmarkAdapter = Object.freeze({
   dataset: "math",
   async load(options: BenchmarkLoadOptions): Promise<LoadedBenchmark> {
-    const path = join(options.dataDir, `math_${options.split}.jsonl`);
-    const rows = await readJsonLines(path, (value, row): MathRow => {
+    const { rows, identity } = await readBenchmarkSplit("math", options, (value, row, path): MathRow => {
       const raw = requireRecord(value, path, row);
       const prompt = requireString(raw.problem, "problem", path, row);
       const solution = requireString(raw.solution, "solution", path, row);
@@ -23,7 +22,7 @@ export const mathAdapter: BenchmarkAdapter = Object.freeze({
       const type = typeof raw.type === "string" ? raw.type : "unknown";
       return Object.freeze({
         task: Object.freeze({
-          id: `math:${options.split}:${row}:${stableId("problem", prompt).slice(-16)}`,
+          id: `math:${createHash("sha256").update(prompt).digest("hex")}`,
           dataset: "math",
           prompt,
           // AFlow's initial MATH workflow supplies the raw problem with no
@@ -34,19 +33,19 @@ export const mathAdapter: BenchmarkAdapter = Object.freeze({
         }),
         solution,
       });
-    });
-    const selected = stratifiedSample(rows, options.limit ?? 0, options.seed ?? 42, (row) => `${row.task.metadata.type}:${row.task.metadata.level}`);
-    return loadedMath(options.split, selected);
+    }, (row) => `${row.task.metadata.type}:${row.task.metadata.level}`);
+    return loadedMath(options.split, rows, identity);
   },
 });
 
-function loadedMath(split: "validate" | "test", rows: readonly MathRow[]): LoadedBenchmark {
+function loadedMath(split: "validate" | "test", rows: readonly MathRow[], identity: BenchmarkIdentity): LoadedBenchmark {
   const references = new Map(rows.map((row) => [row.task.id, row.solution]));
   const tasks = Object.freeze(rows.map((row) => row.task));
   return Object.freeze({
     dataset: "math",
     split,
     tasks,
+    identity,
     async evaluate(runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) {
       const scorer = new AFlowMathScorer(references);
       try {

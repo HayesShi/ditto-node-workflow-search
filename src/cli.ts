@@ -11,6 +11,7 @@ import { RunStore } from "./run/store.js";
 import { loadHistoricalResume } from "./run/resume.js";
 import { WorkflowExecutor } from "./workflow/executor.js";
 import { GENERATION, PROTOCOL } from "./protocol.js";
+import { assertBaselinePromptProfile, baselinePromptProfile, baselinePrompts } from "./benchmark/baseline-prompts.js";
 
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2));
@@ -35,16 +36,19 @@ async function search(
   const store = await RunStore.create(options.outputRoot, options.dataset);
   const loaded = await openBenchmark(options, "validate");
   const dataPath = benchmarkPath(options, "validate");
+  const dataHash = loaded.identity?.rawSha256 ?? await sha256File(dataPath);
   const restored = options.resumeDir ? await loadHistoricalResume(options.resumeDir, options.resumeRound!) : undefined;
   if (restored) {
     const prior = restored.manifest;
+    assertBaselinePromptProfile(options.dataset, prior.promptProfile);
     const priorSearch = prior.search as Record<string, unknown>;
     const expected = { rounds: options.rounds, repeats: options.repeats, testRepeats: options.testRepeats,
       topK: options.topK, convergenceConsecutiveRounds: options.patience, maximumDepth: options.maximumDepth, seed: options.seed };
     if (prior.model !== provider.model || prior.endpoint !== provider.baseUrl || prior.dataset !== options.dataset
       || prior.metricProfile !== metricProfile(options.dataset) || JSON.stringify(prior.protocol) !== JSON.stringify(PROTOCOL)
       || JSON.stringify(prior.generation) !== JSON.stringify(GENERATION) || prior.dittoVersion !== await dittoVersion()
-      || (prior.data as { sha256: string }).sha256 !== await sha256File(dataPath)
+      || (prior.data as { sha256: string }).sha256 !== dataHash
+      || JSON.stringify((prior.data as { identity?: unknown }).identity) !== JSON.stringify(loaded.identity)
       || JSON.stringify((prior.data as { selectedIds: string[] }).selectedIds) !== JSON.stringify(loaded.tasks.map(task => task.id))
       || Object.entries(expected).some(([key, value]) => priorSearch[key] !== value)) throw new Error("Resume model/data/search settings differ from the frozen experiment");
   }
@@ -64,6 +68,7 @@ async function search(
     independentRoundTests: { checkpointDirectory: "checkpoints", resultsUsedBySearch: false },
     generation: GENERATION,
     protocol: PROTOCOL,
+    ...(baselinePromptProfile(options.dataset) ? { promptProfile: baselinePromptProfile(options.dataset) } : {}),
     ...(restored ? { resumedFrom: { directory: options.resumeDir, completedSearchRounds: restored.state.completedRounds,
       discardedIncompleteRound: restored.state.completedRounds + 1, originalProviderConcurrency: restored.manifest.providerConcurrency } } : {}),
     search: {
@@ -81,9 +86,10 @@ async function search(
     },
     data: {
       file: basename(dataPath),
-      sha256: await sha256File(dataPath),
+      sha256: dataHash,
       selectedExamples: loaded.tasks.length,
       selectedIds: loaded.tasks.map((task) => task.id),
+      identity: loaded.identity,
     },
     ...(isCodeDataset(options.dataset) ? { codeJudge: { kind: "docker", image: options.dockerImage, network: "none" } } : {}),
   };
@@ -208,9 +214,13 @@ async function testFrozen(
   if (!options.runDir) throw new Error("test requires --run-dir");
   const store = await RunStore.open(options.runDir);
   const manifest = await store.readManifest();
+  assertBaselinePromptProfile(options.dataset, manifest.promptProfile);
   if (manifest.model !== provider.model || manifest.endpoint !== provider.baseUrl
-    || JSON.stringify(manifest.protocol) !== JSON.stringify(PROTOCOL)) {
-    throw new Error("Frozen model/endpoint/protocol does not match the current test configuration");
+    || JSON.stringify(manifest.protocol) !== JSON.stringify(PROTOCOL)
+    || JSON.stringify(manifest.generation) !== JSON.stringify(GENERATION)
+    || manifest.dittoVersion !== await dittoVersion()
+    || manifest.metricProfile !== metricProfile(options.dataset)) {
+    throw new Error("Frozen model/endpoint/generation/protocol/scoring/runtime does not match the current test configuration");
   }
   if (manifest.status === "complete") throw new Error("Final test already exists; refusing to overwrite it");
   if (manifest.dataset !== options.dataset) {
@@ -222,6 +232,7 @@ async function testFrozen(
   const plan = await store.readBestPlan();
   const loaded = await openBenchmark(options, "test");
   const dataPath = benchmarkPath(options, "test");
+  const dataHash = loaded.identity?.rawSha256 ?? await sha256File(dataPath);
   console.log(JSON.stringify({ phase: "test-start", dataset: options.dataset, examples: loaded.tasks.length, frozenPlan: plan.id }));
   let scoreSum = 0;
   const summary = await loaded.evaluate(
@@ -254,9 +265,10 @@ async function testFrozen(
     completedAt: new Date().toISOString(),
     test: {
       file: basename(dataPath),
-      sha256: await sha256File(dataPath),
+      sha256: dataHash,
       selectedExamples: loaded.tasks.length,
       selectedIds: loaded.tasks.map((task) => task.id),
+      identity: loaded.identity,
       score: summary.score,
       repeats: summary.repeats,
       standardDeviation: summary.standardDeviation,
@@ -297,7 +309,7 @@ function isCodeDataset(dataset: DatasetName): dataset is "humaneval" | "mbpp" {
 
 function metricProfile(dataset: DatasetName): string {
   switch (dataset) {
-    case "drop": return "aflow-drop-token-f1-v1";
+    case "drop": return "aflow-drop-token-f1-v2";
     case "humaneval": return "docker-private-tests-pass-at-1-v1";
     case "mbpp": return "docker-private-tests-pass-at-1-v1";
     case "gsm8k": return "last-number-accuracy-v1";
@@ -306,21 +318,23 @@ function metricProfile(dataset: DatasetName): string {
 }
 
 function taskGoal(dataset: DatasetName): string {
-  switch (dataset) {
-    case "drop": return "Search a compact Ditto Node path that answers DROP reading-comprehension questions with high token F1.";
-    case "humaneval": return "Search a compact Ditto Node path that produces correct HumanEval Python functions under private tests.";
-    case "mbpp": return "Search a compact Ditto Node path that produces correct MBPP Python functions under private tests.";
-    case "gsm8k": return "Search a compact Ditto Node path that solves GSM8K word problems with correct final numbers.";
-    case "math": return "Search a compact Ditto Node path that maximizes mathematical answer accuracy on competition problems.";
-  }
+  const goal = {
+    drop: "Search a compact Ditto Node path that answers DROP reading-comprehension questions with high token F1.",
+    humaneval: "Search a compact Ditto Node path that produces correct HumanEval Python functions under private tests.",
+    mbpp: "Search a compact Ditto Node path that produces correct MBPP Python functions under private tests.",
+    gsm8k: "Search a compact Ditto Node path that solves GSM8K word problems with correct final numbers.",
+    math: "Search a compact Ditto Node path that maximizes mathematical answer accuracy on competition problems.",
+  }[dataset];
+  const prompts = baselinePrompts(dataset);
+  return prompts ? `${goal}\nThe initial root uses the pinned MFlow agent seed. These public review and integration seeds are editable references for prompt search; preserve the dataset answer contract.\n\nReview seed:\n${prompts.review}\n\nIntegration seed:\n${prompts.integrate}` : goal;
 }
 
 function initialInstruction(dataset: DatasetName): string {
   switch (dataset) {
-    case "drop": return "Read the passage and question carefully. Derive the shortest supported answer; finish with the answer only.";
+    case "drop": return baselinePrompts(dataset)!.agent;
     case "humaneval": return "Implement the requested Python function correctly for general inputs. Return one complete Python code block and no tests.";
     case "mbpp": return "Implement the requested Python function correctly for general inputs. Return one complete Python code block and no tests.";
-    case "gsm8k": return "Solve the word problem step by step, verify the arithmetic, and put the final numeric answer last.";
+    case "gsm8k": return baselinePrompts(dataset)!.agent;
     // AFlow round 1 calls Custom with instruction="" and the raw problem. Keep
     // Ditto's baseline objective empty; differences added by Ditto Node
     // semantics remain the intended framework variable.

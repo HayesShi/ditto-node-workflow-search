@@ -12,7 +12,7 @@ test("optimizer parser accepts exactly one allowlisted Ditto Node proposal", () 
     "config":{
       "mode":"revise",
       "criteria":["correctness","output contract"],
-      "generation":{"temperature":0.2,"maxTokens":${GENERATION.maxTokens}}
+      "generation":{"temperature":${GENERATION.temperature},"maxTokens":${GENERATION.maxTokens}}
     }
   }
   \`\`\``);
@@ -24,7 +24,7 @@ test("optimizer parser accepts exactly one allowlisted Ditto Node proposal", () 
     config: {
       mode: "revise",
       criteria: ["correctness", "output contract"],
-      generation: { temperature: 0.2, maxTokens: GENERATION.maxTokens },
+      generation: { temperature: GENERATION.temperature, maxTokens: GENERATION.maxTokens },
     },
   });
   assert.equal("id" in proposal, false, "IDs must be assigned only by trusted code");
@@ -45,7 +45,7 @@ test("optimizer parser rejects unknown Nodes and executable-code fields", () => 
     config: {
       role: "solver",
       instruction: "Solve the task.",
-      generation: { temperature: 0.2, maxTokens: 512 },
+      generation: { temperature: GENERATION.temperature, maxTokens: 512 },
     },
     code: "process.exit(0)",
   })), /Unexpected field: code/);
@@ -57,7 +57,7 @@ test("optimizer parser rejects unknown Nodes and executable-code fields", () => 
     config: {
       role: "solver",
       instruction: "Solve the task.",
-      generation: { temperature: 0.2, maxTokens: 512 },
+      generation: { temperature: GENERATION.temperature, maxTokens: 512 },
     },
   });
   assert.throws(() => parseNodeProposal(`${valid}\n${valid}`), /exactly one Node proposal/);
@@ -72,7 +72,7 @@ test("optimizer parser enforces Graph placement and dependency shape", () => {
       instruction: "Solve the task.",
       strategy: "cot",
       options: { rounds: 1 },
-      generation: { temperature: 0.2, maxTokens: GENERATION.maxTokens },
+      generation: { temperature: GENERATION.temperature, maxTokens: GENERATION.maxTokens },
       maxSteps: 8,
     },
   })), /TRAJECTORY graphId must be solve/);
@@ -83,7 +83,7 @@ test("optimizer parser enforces Graph placement and dependency shape", () => {
     dependencies: ["trajectory-1", "trajectory-1"],
     config: {
       mode: "select",
-      generation: { temperature: 0.2, maxTokens: GENERATION.maxTokens },
+      generation: { temperature: GENERATION.temperature, maxTokens: GENERATION.maxTokens },
     },
   })), /dependencies must not contain duplicates/);
 
@@ -95,7 +95,7 @@ test("optimizer parser enforces Graph placement and dependency shape", () => {
       instruction: "Solve the task.",
       strategy: "tot",
       options: { breadth: 2, depth: 2 },
-      generation: { temperature: 0.2, maxTokens: GENERATION.maxTokens },
+      generation: { temperature: GENERATION.temperature, maxTokens: GENERATION.maxTokens },
       maxSteps: 8,
     },
   })), /Missing tot option: beamWidth/);

@@ -1,3 +1,5 @@
+import { EXPERIMENT_EXECUTION } from "../model-profile.js";
+import { baselineTextMessages } from "../benchmark/baseline-prompts.js";
 import { isDeepStrictEqual } from "node:util";
 import { isRawBaseline } from "./spec.js";
 import type { Context, ContextItem as SharedContextItem } from "@codesoul-co/ditto/contracts";
@@ -88,7 +90,7 @@ export class WorkflowExecutor {
 
     const definition = loop<BenchmarkTask, AgentRunResult>({
       id: `${plan.id}:loop`,
-      maxIterations: plan.loop.maxGraphRuns,
+      maxIterations: EXPERIMENT_EXECUTION.maxIterations,
       *plan(loopTask) {
         const state = createExecutionState();
         let graphId: string | undefined = plan.loop.entryGraphId;
@@ -224,14 +226,16 @@ function nodeInput(
         strategy: { name: node.config.strategy, options: { ...node.config.options } },
         model,
         generation: node.config.generation,
-        constraints: { maxSteps: node.config.maxSteps },
+        constraints: { maxSteps: EXPERIMENT_EXECUTION.maxSteps },
         metadata,
       };
 
     case "INFER.REASONING.SAMPLE": {
       if (isRawBaseline(node)) {
         return {
-          messages: [{ role: "user", content: node.config.instruction + task.prompt }],
+          messages: task.dataset === "drop" || task.dataset === "gsm8k"
+            ? baselineTextMessages(task.dataset, node.config.instruction, task.prompt)
+            : [{ role: "user", content: node.config.instruction + task.prompt }],
           model, generation: node.config.generation, metadata,
         };
       }
@@ -242,7 +246,9 @@ function nodeInput(
         ? `\n\nWorking context:\n${context.items.map((item) => contextItemText(item)).join("\n")}`
         : "";
       return {
-        messages: [
+        messages: task.dataset === "drop" || task.dataset === "gsm8k"
+          ? baselineTextMessages(task.dataset, node.config.instruction, task.prompt, `${evidence}${contextText}`)
+          : [
           { role: "system", content: node.config.instruction },
           { role: "user", content: `${taskMessage}${evidence}${contextText}` },
         ],
