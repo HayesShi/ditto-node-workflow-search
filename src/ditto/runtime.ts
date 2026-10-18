@@ -5,6 +5,7 @@ import { createMemoryWorker, type MemoryResources } from "@codesoul-co/ditto/wor
 import { GENERATION } from "../protocol.js";
 import { createInteractionWorker, type RegisteredTool } from "@codesoul-co/ditto/worker/interaction";
 import { createAutomationTools } from "./automation-tools.js";
+import { createPythonTool, pythonExecutor, type MathPythonIdentity } from "./python-tool.js";
 import { AUTOMATION_TOOLS, automationScope } from "../benchmark/automation.js";
 import { createHttpProvider, createInferWorker, type ModelProvider } from "@codesoul-co/ditto/worker/infer";
 import type { ProviderSettings } from "../config.js";
@@ -28,6 +29,7 @@ export interface ExperimentRuntimeOptions {
   readonly tools?: readonly RegisteredTool[];
   readonly memory?: MemoryResources;
   readonly provider?: ModelProvider;
+  readonly mathPython?: MathPythonIdentity;
 }
 
 export function applyModelProfile(provider: ModelProvider, profile: "math" | "automationbench"): ModelProvider {
@@ -78,10 +80,11 @@ export function createExperimentRuntime(settings: ProviderSettings, options: Exp
     },
   };
   const automation = options.profile === "automationbench";
-  const tools = options.tools ?? (automation ? createAutomationTools() : []);
-  const runtime = createDitto({ sandbox: { tools: tools.map(tool => tool.name) }, workers: [
+  const tools = options.tools ?? (automation ? createAutomationTools() : options.mathPython ? [createPythonTool(options.mathPython.image)] : []);
+  const runtime = createDitto({ ...(options.mathPython ? { sandboxExecutor: pythonExecutor() } : {}),
+    sandbox: { tools: tools.map(tool => tool.name), execute: Boolean(options.mathPython) }, workers: [
     createContextWorker(automation ? { policy: { maxItems: 1_000_000, maxInlineBytes: 1_000_000 } } : {}),
-    ...(automation || options.tools ? [createInteractionWorker({ tools, output: { async deliver(input) { return { deliveryId: input.deliveryId, status: "accepted" as const }; } } })] : []),
+    ...(automation || options.tools || options.mathPython ? [createInteractionWorker({ tools, output: { async deliver(input) { return { deliveryId: input.deliveryId, status: "accepted" as const }; } } })] : []),
     ...(options.memory ? [createMemoryWorker(options.memory)] : []),
     createInferWorker({
       providers: { [providerName]: traced },

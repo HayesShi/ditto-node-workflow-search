@@ -10,6 +10,7 @@ import { captureModelOutputs, OutputBudgetAnswerError, type ModelOutputRecord } 
 import { WorkflowExecutionError } from './executor.js';
 import { nodeCatalog, validateOrganizationPlan } from './organization.js';
 import type { OrganizationSpec } from './organization-types.js';
+import { PYTHON_ACTION, assertMathPythonHealthy, withMathPythonScope } from '../ditto/python-tool.js';
 
 type Output = Record<string, any>;
 type Node = OrganizationSpec['nodes'][number];
@@ -30,7 +31,8 @@ function unwrap(type: string, value: unknown): Output {
 
 /** The only driver interprets searched graphs/transitions. No fixed post-plan tool loop. */
 export function runOrganization(runtime: DittoRuntime, model: ModelConfig, plan: AgentPlanSpec, task: BenchmarkTask, signal?: AbortSignal): Promise<AgentRunResult> {
-  return captureModelOutputs(records => executeOrganization(runtime, model, plan, task, records, signal));
+  const run = () => captureModelOutputs(records => executeOrganization(runtime, model, plan, task, records, signal));
+  return task.dataset === 'math' ? withMathPythonScope(run) : run();
 }
 async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, plan: AgentPlanSpec, task: BenchmarkTask, budgetRecords: ModelOutputRecord[], signal?: AbortSignal): Promise<AgentRunResult> {
   validateOrganizationPlan(plan);
@@ -42,6 +44,7 @@ async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, pl
   const outputIds = new WeakMap<Output,string>();
   const outputId = (out:Output):string => {let id=outputIds.get(out);if(!id){id=randomUUID();outputIds.set(out,id);}return id;};
   const normalized = (id: string, raw: unknown): Output => {
+    if (task.dataset === 'math') assertMathPythonHealthy();
     try { return unwrap(catalog[nodes.get(id)!.template]!.type, raw); }
     catch(error) {
       const observed=budgetRecords.filter(r=>r.nodeId===id).at(-1);
@@ -66,7 +69,7 @@ async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, pl
         for (const d of local) if (nodes.get(d)!.template === 'actor') {
           for (const call of deps[d]?.actionRequests ?? []) consumed.delete(`${d}\0${call.id}`);
         }
-        return bind(n, deps, consumed, task, model, spec, session?.tools ?? [], outputId);
+        return bind(n, deps, consumed, task, model, spec, task.dataset === 'math' ? [PYTHON_ACTION] : session?.tools ?? [], outputId);
       });
     }
     return [g.id, builder] as const;

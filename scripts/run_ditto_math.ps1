@@ -93,10 +93,10 @@ try {
   if ($smokeTest.failedRuns -ne 0 -or $smokeTest.examples -ne 2) { throw "Smoke frozen test has execution failures" }
   Write-State "smoke-passed" @{ smokeRun = $smokeRun.FullName; smokeTestScore = $smokeTest.score }
   $env:DITTO_PROVIDER_LOG = Join-Path $SessionDirectory "ditto-provider.jsonl"
-  Invoke-DittoStage "ditto-search" @($cli, "search", "--dataset", "math", "--data-dir", $data, "--output-root", $output, "--rounds", "20", "--repeats", "5", "--test-repeats", "3", "--evaluation-concurrency", "3", "--top-k", "4", "--patience", "5", "--seed", "42", "--maximum-depth", "10")
+  Invoke-DittoStage "ditto-search" @($cli, "search", "--dataset", "math", "--data-dir", $data, "--output-root", $output, "--rounds", "20", "--repeats", "1", "--test-repeats", "1", "--evaluation-concurrency", "3", "--top-k", "4", "--patience", "5", "--seed", "42", "--maximum-depth", "10")
   $run = Get-ChildItem -LiteralPath (Join-Path $output "math") -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if (-not $run) { throw "Ditto search returned no run directory" }
-  Invoke-DittoStage "ditto-test" @($cli, "test", "--dataset", "math", "--data-dir", $data, "--run-dir", $run.FullName, "--test-repeats", "3", "--evaluation-concurrency", "3")
+  Invoke-DittoStage "ditto-test" @($cli, "test", "--dataset", "math", "--data-dir", $data, "--run-dir", $run.FullName, "--test-repeats", "1", "--evaluation-concurrency", "3")
   Write-State "complete" @{ completedAt = (Get-Date).ToUniversalTime().ToString("o"); dittoRun = $run.FullName }
 } catch {
   Write-State "failed" @{ failedAt = (Get-Date).ToUniversalTime().ToString("o"); error = $_.Exception.Message }

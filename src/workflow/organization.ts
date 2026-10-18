@@ -3,8 +3,9 @@ import { isDeepStrictEqual } from 'node:util';
 import type { AgentPlanSpec, GraphTransition, WorkflowNodeSpec } from '../domain.js';
 import { GENERATION } from '../protocol.js';
 import type { OrganizationSpec } from './organization-types.js';
+import { PYTHON_ACTION } from '../ditto/python-tool.js';
 
-export const ORGANIZATION_VERSION = 'fixed-capabilities-topology-v1';
+export const ORGANIZATION_VERSION = 'fixed-capabilities-topology-v2';
 // Exact public task instruction used by the pinned MFlow baseline bridge.
 export const AUTOMATION_INSTRUCTION = `Complete the requested business workflow in the official simulated APIs.
 Discover precise endpoints with api_search; read each endpoint's method, parameter names and response schema before api_fetch.
@@ -32,13 +33,12 @@ export function nodeCatalog(dataset: OrganizationSpec['dataset']): Readonly<Reco
     revise: { type: 'INFER.REASONING.REFLECT', config: { ...reasoning, mode: 'revise', criteria: ['Correct concrete errors against the original task and public evidence.'] }, description: 'Revise an explicitly wired result.' },
     select: { type: 'INFER.REASONING.DELIBERATE', config: { ...reasoning, mode: 'select' }, description: 'Select among at least two explicitly wired results.' },
     merge: { type: 'INFER.REASONING.DELIBERATE', config: { ...reasoning, mode: 'merge' }, description: 'Integrate at least two explicitly wired results.' },
-    ...(dataset === 'automationbench' ? {
-      actor: { type: 'INFER.REASONING.SAMPLE' as const, config: { ...reasoning, role: 'solver', instruction: AUTOMATION_INSTRUCTION }, description: 'Generate a response or official tool requests from explicitly wired task/evidence. Does not execute actions.' },
+      actor: { type: 'INFER.REASONING.SAMPLE' as const, config: { ...reasoning, role: 'solver', instruction: dataset === 'automationbench' ? AUTOMATION_INSTRUCTION : '',
+        ...(dataset === 'math' ? { actions: [PYTHON_ACTION] } : {}) }, description: 'Generate a response or fixed tool requests from explicitly wired task/evidence. Does not execute actions.' },
       act: { type: 'INTERACTION.ACT.TOOL' as const, config: { template: 'act' }, description: 'Execute the next unconsumed request from a directly wired actor; tool capabilities are fixed.' },
       observe: { type: 'INTERACTION.OBSERVE' as const, config: { template: 'observe' }, description: 'Convert a directly wired real tool result to an observation.' },
       update: { type: 'CONTEXT.UPDATE' as const, config: { template: 'update' }, description: 'Append directly wired messages, requests and observations to a wired context.' },
       output: { type: 'INTERACTION.OUTPUT' as const, config: { template: 'output' }, description: 'Deliver the directly wired assistant result. Does not score or modify the world.' },
-    } : {}),
   };
 }
 

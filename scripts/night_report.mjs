@@ -35,7 +35,7 @@ export async function nightReport(session, runDirectory, testDirectory, guard = 
   const report = { updatedAt: new Date().toISOString(), phase: complete ? "complete" : manifest.status,
     model: manifest.model, runDirectory, testDirectory, completedSearchRounds: state?.completedRounds ?? 0,
     searchRoundLimit: manifest.search.rounds, validationExamples: manifest.data.selectedExamples,
-    validationRepeats: manifest.search.repeats, testExamples: 486, testRepeats: 3,
+    validationRepeats: manifest.search.repeats, testExamples: 486, testRepeats: manifest.testSettings?.repeats ?? manifest.search.testRepeats ?? rows.find(row => row.test)?.test.repeats ?? null,
     frozen, validationSelectedBestId: bestId, final: frozen ? rows.find(row => row.id === bestId) ?? null : null,
     rows, recoveryAttempts: guard.searchRestarts ?? 0, scoresReturnedToSearch: false };
   const pct = value => typeof value === "number" ? `${(100 * value).toFixed(4)}%` : "pending";

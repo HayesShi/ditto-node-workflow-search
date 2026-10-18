@@ -1,9 +1,9 @@
 /** Shared request protocol. Actual run sizes/repeats are frozen in manifest.search. */
 export const GENERATION = Object.freeze({ temperature: 0, maxTokens: 393_216 });
 export const PROTOCOL = Object.freeze({
-  id: "ditto-topology-flash-20261018-v3",
+  id: "ditto-topology-flash-20261018-v4",
   generation: GENERATION,
-  searchSpace: "fixed-node-capabilities-full-topology-v1",
+  searchSpace: "fixed-node-capabilities-full-topology-v2",
   baselineGuidance: "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/finite-programs-v2",
   outputLimitPolicy: "score-received-output",
   thinking: "disabled",
@@ -18,7 +18,7 @@ export const PROTOCOL = Object.freeze({
     math: "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/hb-deepseek-baselines.json#aflow.validationRounds=1",
     automationbench: "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/automationbench-baselines.json#aflow.validationRounds=5",
   }),
-  defaultTestRepeats: 3,
+  defaultTestRepeats: 1,
   selectionTopK: 4,
   selectionAlpha: 0.2,
   selectionLambda: 0.3,

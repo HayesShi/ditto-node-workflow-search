@@ -94,7 +94,7 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
     rounds: integer(values.get("rounds") ?? "20", "rounds", 1, 1_000),
     repeats: integer(values.get("repeats") ?? String(rawDataset === "math"
       ? PROTOCOL.validationRepeatOverrides.math : PROTOCOL.defaultValidationRepeats), "repeats", 1, 20),
-    testRepeats: integer(values.get("test-repeats") ?? "3", "test-repeats", 1, 20),
+    testRepeats: integer(values.get("test-repeats") ?? String(PROTOCOL.defaultTestRepeats), "test-repeats", 1, 20),
     evaluationConcurrency: rawCommand === "search" ? searchConcurrency : testConcurrency,
     searchConcurrency,
     testConcurrency,

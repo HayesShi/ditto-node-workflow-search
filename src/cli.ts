@@ -18,12 +18,14 @@ import { assertValidEvaluation } from "./search/backprop.js";
 import { loadHistoricalResume } from "./run/resume.js";
 import { WorkflowExecutor } from "./workflow/executor.js";
 import { GENERATION, PROTOCOL } from "./protocol.js";
+import { mathPythonIdentity } from "./ditto/python-tool.js";
 
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2));
   const provider = Object.freeze({ ...loadProviderSettings(),
     concurrency: options.command === "search" ? options.searchProviderConcurrency : options.testProviderConcurrency });
-  const experiment = createExperimentRuntime(provider, { profile: options.dataset === "automationbench" ? "automationbench" : "math" });
+  const mathPython = options.dataset === 'math' ? await mathPythonIdentity() : undefined;
+  const experiment = createExperimentRuntime(provider, { profile: options.dataset === "automationbench" ? "automationbench" : "math", ...(mathPython ? { mathPython } : {}) });
   const executor = new WorkflowExecutor(experiment.runtime, experiment.providerName, experiment.model);
   try {
     if (options.command === "search") await search(options, provider, experiment, executor);
@@ -39,7 +41,7 @@ async function search(
   experiment: ExperimentRuntime,
   executor: WorkflowExecutor,
 ): Promise<void> {
-  const executionIdentity = { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs };
+  const executionIdentity = await executionIdentityFor(options.dataset, provider.timeoutMs);
   const codeSha256 = executionIdentity.source;
   const store = await RunStore.create(options.outputRoot, options.dataset);
   const loaded = await openBenchmark(options, "validate", store.directory);
@@ -108,7 +110,7 @@ async function search(
   console.log(JSON.stringify({ phase: "search-start", dataset: options.dataset, examples: loaded.tasks.length, runDirectory: store.directory }));
 
   const evaluate = async (plan: Parameters<WorkflowExecutor["run"]>[0]): Promise<EvaluationSummary> => {
-    assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
+    assertExecutionIdentity(executionIdentity, await executionIdentityFor(options.dataset, provider.timeoutMs));
     // Publish locally before validation. A separate process consumes these
     // files; no test score or test completion enters this search process.
     await store.saveCheckpoint(plan);
@@ -162,7 +164,7 @@ async function search(
         },
       },
     );
-    assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
+    assertExecutionIdentity(executionIdentity, await executionIdentityFor(options.dataset, provider.timeoutMs));
     await recovery.finish(summary.valid === true);
     return summary;
   };
@@ -219,7 +221,7 @@ async function search(
       stoppedBecause: result.stoppedBecause,
       exploredNodes: result.nodes.length,
     });
-    assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
+    assertExecutionIdentity(executionIdentity, await executionIdentityFor(options.dataset, provider.timeoutMs));
     Object.assign(manifest, {
       status: "frozen",
       frozenAt: new Date().toISOString(),
@@ -261,7 +263,7 @@ async function testFrozen(
   if (!options.runDir) throw new Error("test requires --run-dir");
   const store = await RunStore.open(options.runDir);
   const manifest = await store.readManifest();
-  const executionIdentity = { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs };
+  const executionIdentity = await executionIdentityFor(options.dataset, provider.timeoutMs);
   assertExecutionIdentity(manifest.executionIdentity, executionIdentity);
   if (!isDeepStrictEqual(manifest.generation, GENERATION) || manifest.dittoVersion !== executionIdentity.dittoVersion || manifest.metricProfile !== metricProfile(options.dataset)) throw new Error("Frozen generation/scorer/dependency differs");
   if (options.dataset === "automationbench" && JSON.stringify(manifest.automation) !== JSON.stringify(await automationIdentity())) throw new Error("Frozen AutomationBench source/environment/scorer identity differs");
@@ -321,7 +323,7 @@ async function testFrozen(
       },
     },
   );
-  assertExecutionIdentity(executionIdentity, { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(options.dataset), providerTimeoutMs: provider.timeoutMs });
+  assertExecutionIdentity(executionIdentity, await executionIdentityFor(options.dataset, provider.timeoutMs));
   await recovery.finish(summary.valid === true);
   await store.saveTest(summary);
   Object.assign(manifest, {
@@ -412,6 +414,11 @@ function initialInstruction(dataset: DatasetName): string {
 }
 
 function planHash(plan: unknown): string { return createHash("sha256").update(JSON.stringify(plan)).digest("hex"); }
+
+async function executionIdentityFor(dataset: DatasetName, timeoutMs: number) {
+  return { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity(dataset), providerTimeoutMs: timeoutMs,
+    ...(dataset === 'math' ? { mathPython: await mathPythonIdentity() } : {}) };
+}
 
 async function dittoVersion(): Promise<string> {
   try {

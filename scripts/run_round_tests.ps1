@@ -4,7 +4,7 @@ param(
   [int]$TestConcurrency = 200,
   [int]$ProviderConcurrency = 200,
   [int]$WorkflowConcurrency = 2,
-  [int]$TestRepeats = 3,
+  [int]$TestRepeats = 1,
   [switch]$DryRun
 )
 

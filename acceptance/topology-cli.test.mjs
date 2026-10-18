@@ -33,9 +33,9 @@ test('CLI searches a full topology, freezes it, tests it and rejects a mismatche
   });
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const env={...Object.fromEntries(Object.entries(process.env).filter(([key])=>!/KEY|TOKEN|SECRET|PASSWORD/i.test(key))),
-    CODE_SOUL_API_KEY:'local-fixture',CODE_SOUL_MODEL:'fixture',CODE_SOUL_BASE_URL:`http://127.0.0.1:${server.address().port}`,NO_PROXY:'127.0.0.1,localhost'};
+    CODE_SOUL_API_KEY:'local-fixture',CODE_SOUL_MODEL:'fixture',CODE_SOUL_BASE_URL:`http://127.0.0.1:${server.address().port}`,NO_PROXY:'127.0.0.1,localhost',DITTO_DOCKER:'docker'};
   const cli=(args)=>new Promise((resolve,reject)=>{
-    const child=spawn(process.execPath,['dist/cli.js',...args],{env,windowsHide:true,stdio:['ignore','pipe','pipe']});let out='';
+    const child=spawn(process.execPath,['--import',new URL('./docker-preload.mjs',import.meta.url).href,'dist/cli.js',...args],{env,windowsHide:true,stdio:['ignore','pipe','pipe']});let out='';
     child.stdout.on('data',chunk=>out+=chunk);child.stderr.on('data',chunk=>out+=chunk);child.on('error',reject);child.on('close',code=>resolve({code,out}));
   });
   try{
@@ -45,6 +45,7 @@ test('CLI searches a full topology, freezes it, tests it and rejects a mismatche
     const manifest=JSON.parse(await readFile(join(run,'manifest.json'),'utf8'));
     const plan=JSON.parse(await readFile(join(run,'best/plan.json'),'utf8'));
     assert.equal(manifest.status,'frozen');assert.equal(manifest.best.validationScore,1);assert.equal(plan.outputNodeId,'revision');assert.ok(plan.organization);
+    assert.equal(manifest.executionIdentity.mathPython.image,'sha256:2fc2c915ed384368f492e415d42f7491defbaaa29436b3013e84627fe85b57a6');
     assert.equal(requests,4,'initial SAMPLE, proposal, candidate SAMPLE and revision');
     const tested=await cli(['test',...settings,'--run-dir',run]);assert.equal(tested.code,0,tested.out);assert.equal(requests,6);
     const complete=JSON.parse(await readFile(join(run,'manifest.json'),'utf8'));assert.equal(complete.test.score,1);assert.equal(complete.status,'complete');

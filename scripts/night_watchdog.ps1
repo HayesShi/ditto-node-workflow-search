@@ -230,7 +230,7 @@ try {
         $arguments = @((Join-Path $Snapshot "dist/cli.js"), "search", "--dataset", "math",
           "--data-dir", (Join-Path $SessionDirectory "aflow-reference/data/datasets"),
           "--output-root", $guard.searchOutputRoot, "--resume-dir", $source, "--resume-round", [string]$resume.completedRounds,
-          "--rounds", "20", "--repeats", "5", "--test-repeats", "3", "--search-concurrency", "128",
+          "--rounds", "20", "--repeats", "1", "--test-repeats", "1", "--search-concurrency", "128",
           "--search-provider-concurrency", "256", "--top-k", "4", "--patience", "5", "--seed", "42", "--maximum-depth", "10")
         Save-Guard
         $guard.searchPid = Start-Node $arguments (Join-Path $recovery "ditto-search")
@@ -273,7 +273,7 @@ try {
         $env:DITTO_PROVIDER_LOG = Join-Path $guard.testDirectory "provider.jsonl"
         $arguments = @((Join-Path $Snapshot "dist/round-test-runner.js"), "--run-dir", $guard.searchRun,
           "--data-dir", (Join-Path $SessionDirectory "aflow-reference/data/datasets"), "--output-dir", $guard.testDirectory,
-          "--test-concurrency", "200", "--provider-concurrency", "200", "--workflow-concurrency", "2", "--test-repeats", "3")
+          "--test-concurrency", "200", "--provider-concurrency", "200", "--workflow-concurrency", "2", "--test-repeats", "1")
         $logStem = Join-Path $guard.testDirectory ("runner-restart-{0}" -f $guard.testRestarts)
         $guard.testLog = "$logStem.out.log"
         $guard.testPid = Start-Node $arguments $logStem

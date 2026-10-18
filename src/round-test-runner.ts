@@ -1,3 +1,4 @@
+import { mathPythonIdentity } from './ditto/python-tool.js';
 import { pythonExecutionIdentity } from "./run/python-identity.js";
 import { assertExecutionIdentity, currentExecutionIdentity } from "./run/execution-identity.js";
 import { readFile } from "node:fs/promises";
@@ -19,10 +20,14 @@ async function main(): Promise<void> {
   const testDataHash = await sha256File(testFile);
   const manifest = JSON.parse(await readFile(join(options.runDirectory, "manifest.json"), "utf8")) as Record<string, unknown>;
   const frozenIdentity = manifest.executionIdentity as { providerTimeoutMs?: number } | undefined;
-  const executionIdentity = { ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity("math"), providerTimeoutMs: frozenIdentity?.providerTimeoutMs };
+  const mathPython = await mathPythonIdentity();
+  const executionIdentity = { mathPython, ...await currentExecutionIdentity(process.cwd()), python: await pythonExecutionIdentity("math"), providerTimeoutMs: frozenIdentity?.providerTimeoutMs };
   assertExecutionIdentity(manifest.executionIdentity, executionIdentity);
   if (manifest.frozenTestDataSha256 !== testDataHash) throw new Error("Frozen Test data differs");
   if (manifest.dataset !== "math") throw new Error("This independent runner currently supports MATH only");
+  const testSettings = manifest.testSettings as { repeats?: number; limit?: number; seed?: number } | undefined;
+  if (testSettings?.repeats !== options.repeats || testSettings.limit !== 0 || testSettings.seed !== 43)
+    throw new Error('Independent Test repeats/selection differ from frozen search settings');
   if (manifest.metricProfile !== "mflow-math-verify-0.9.0") throw new Error("Test scoring must match the frozen search scoring version");
   const benchmark = await loadBenchmark("math", { dataDir: options.dataDirectory, split: "test", limit: 0, seed: 43 });
   if (options.dryRun) {
@@ -40,7 +45,7 @@ async function main(): Promise<void> {
   if (manifest.model !== provider.model || manifest.endpoint !== provider.baseUrl || JSON.stringify(manifest.protocol) !== JSON.stringify(PROTOCOL)) throw new Error("Test model/endpoint/protocol differs from frozen search");
   if (provider.timeoutMs !== frozenIdentity?.providerTimeoutMs) throw new Error("Provider timeout differs from frozen search");
   const releaseLock = await acquireTestLock(options.outputDirectory);
-  const experiment = createExperimentRuntime(provider);
+  const experiment = createExperimentRuntime(provider, { mathPython });
   const executor = new WorkflowExecutor(experiment.runtime, experiment.providerName, experiment.model);
   const validate = (checkpoint: WorkflowCheckpoint): void => {
     assertExecutionIdentity(checkpoint.executionIdentity, executionIdentity);

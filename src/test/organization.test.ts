@@ -46,7 +46,8 @@ test('optimizer cannot change prompts, generation, tool capability or undeclared
   }
   const tampered=structuredClone(buildOrganizationPlan(initialOrganization('math'))) as any;tampered.nodes[1].config.instruction='changed';assert.throws(()=>validateOrganizationPlan(tampered),/fixed capability/);
   const spec=structuredClone(initialOrganization('math')) as any;spec.nodes[1].dependencies=['future'];assert.throws(()=>validateOrganization(spec),/dependency/);
-  assert.equal(nodeCatalog('math').act,undefined);
+  assert.equal(nodeCatalog('math').act?.type,'INTERACTION.ACT.TOOL');
+  assert.equal(nodeCatalog('math').actor?.config.instruction,'');
 });
 
 test('searched dependency rewiring changes actual inference inputs while catalog stays fixed',async()=>{

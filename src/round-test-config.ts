@@ -1,4 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { PROTOCOL } from "./protocol.js";
 
 export interface RoundTestOptions {
   readonly runDirectory: string;
@@ -46,7 +47,7 @@ export function parseRoundTestArguments(argv: readonly string[]): RoundTestOptio
     runDirectory, dataDirectory: resolve(values.get("data-dir")!), outputDirectory, concurrency,
     providerConcurrency: integer("provider-concurrency", String(concurrency), 4_096),
     workflowConcurrency: integer("workflow-concurrency", "2", 32),
-    repeats: integer("test-repeats", "3", 20), pollMs: integer("poll-ms", "2000", 60_000),
+    repeats: integer("test-repeats", String(PROTOCOL.defaultTestRepeats), 20), pollMs: integer("poll-ms", "2000", 60_000),
     watch: boolean("watch", "true"), dryRun: boolean("dry-run", "false"),
   };
 }

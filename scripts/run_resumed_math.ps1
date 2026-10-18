@@ -59,7 +59,7 @@ try {
     "--data-dir", (Join-Path $SessionDirectory "aflow-reference/data/datasets"),
     "--output-root", (Join-Path $SessionDirectory "ditto-runs"),
     "--resume-dir", $ResumeDirectory, "--resume-round", [string]$ResumeRound,
-    "--rounds", "20", "--repeats", "5", "--test-repeats", "3",
+    "--rounds", "20", "--repeats", "1", "--test-repeats", "1",
     "--search-concurrency", [string]$SearchConcurrency,
     "--search-provider-concurrency", [string]$ProviderConcurrency,
     "--top-k", "4", "--patience", "5", "--seed", "42", "--maximum-depth", "10"

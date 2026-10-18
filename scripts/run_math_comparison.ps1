@@ -129,10 +129,10 @@ try {
   $node = (Get-Command node).Source
   $cli = Join-Path $DittoSnapshot "dist/cli.js"
   $data = Join-Path $AFlowSnapshot "data/datasets"
-  Invoke-Stage "ditto-search" $node @($cli, "search", "--dataset", "math", "--data-dir", $data, "--output-root", $dittoOutput, "--rounds", "20", "--repeats", "5", "--test-repeats", "3", "--evaluation-concurrency", "3", "--top-k", "4", "--patience", "5", "--seed", "42", "--maximum-depth", "10") $DittoSnapshot
+  Invoke-Stage "ditto-search" $node @($cli, "search", "--dataset", "math", "--data-dir", $data, "--output-root", $dittoOutput, "--rounds", "20", "--repeats", "1", "--test-repeats", "1", "--evaluation-concurrency", "3", "--top-k", "4", "--patience", "5", "--seed", "42", "--maximum-depth", "10") $DittoSnapshot
   $run = Get-ChildItem -LiteralPath (Join-Path $dittoOutput "math") -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if (-not $run) { throw "Ditto search returned no run directory" }
-  Invoke-Stage "ditto-test" $node @($cli, "test", "--dataset", "math", "--data-dir", $data, "--run-dir", $run.FullName, "--test-repeats", "3", "--evaluation-concurrency", "3") $DittoSnapshot
+  Invoke-Stage "ditto-test" $node @($cli, "test", "--dataset", "math", "--data-dir", $data, "--run-dir", $run.FullName, "--test-repeats", "1", "--evaluation-concurrency", "3") $DittoSnapshot
   Write-State "complete" @{ completedAt = (Get-Date).ToUniversalTime().ToString("o"); dittoRun = $run.FullName }
 } catch {
   Write-State "failed" @{ failedAt = (Get-Date).ToUniversalTime().ToString("o"); error = $_.Exception.Message }

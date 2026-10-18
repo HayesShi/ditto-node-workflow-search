@@ -14,6 +14,8 @@ MATH 与 AutomationBench 的当前工程验证协议、环境准备、故障处�
 
 数据划分和搜索评估次数以 [官方环境与配置核对](docs/official-environment-audit-20261018.zh-CN.md) 为准：MATH 搜索评估默认 1 次，Automation 默认 5 次；六个数据集均使用 MFlow 已发布的固定划分。
 
+最终 Test 默认统一为 1 次。MATH 现已接入可由搜索编排的隔离 Python 工具，正式启动前必须预装与基线相同的 Docker 镜像；本机目前缺该镜像。[工具接入与剩余限制](docs/python-tool-and-limits-20261018.zh-CN.md) 说明验证范围和对齐建议。
+
 ## 历史追加路径模式（其余四个数据集）
 
 以下根到叶追加路径说明适用于原入口，不能用于重建新版 MATH/Automation 流程。
@@ -132,7 +134,7 @@ node --env-file=.env dist/cli.js test \
   --data-dir data/datasets \
   --run-dir runs/math/<run-id> \
   --test-limit 0 \
-  --test-repeats 3
+  --test-repeats 1
 ```
 
 代码数据集需要先准备容器；judge 使用 `--pull=never`，不会在评分途中隐式下载：
