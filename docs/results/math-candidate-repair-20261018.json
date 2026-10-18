@@ -1,0 +1,50 @@
+{
+  "status": "completed",
+  "finishedAt": "2026-10-18T08:28:02.777Z",
+  "codeCommit": "0c60c03",
+  "protocol": "ditto-topology-flash-20261018-v7-engineering-repair",
+  "planId": "plan-4279b7f4e962eff0",
+  "planSha256": "5296724f33ceb7465b540ca3d1bcd5f3437380e09c13a08c733e3afecb79ae17",
+  "sourceSha256": "197af4f0a3ff8059ae3d20fcc4e319fe3654bf877affbeb798c7341479680a5e",
+  "buildSha256": "1bea022b627a0c1cbce7e19619b5d41522ca827a7581d47f365c99eb93cf8d22",
+  "dataSha256": "0ade63e8c9fe01fb8964fa22f73423be5e1c78addc9942808de464cabab188c0",
+  "examples": 119,
+  "repeats": 1,
+  "correct": 93,
+  "score": 0.7815126050420168,
+  "wrong": 26,
+  "invalid": 0,
+  "formatFailureZeros": 13,
+  "repeatedOutputZeros": 2,
+  "ordinaryWrong": 11,
+  "durationMs": 490828,
+  "knownTokens": 795241,
+  "tokenUsageStatus": "known-lower-bound",
+  "smallSample": {
+    "invalid": 0,
+    "examples": 7,
+    "correct": 4
+  },
+  "checks": {
+    "nodeFailed": 0,
+    "nodeSkipped": 4,
+    "nodePassed": 119,
+    "pythonPassed": 20
+  },
+  "mathPython": {
+    "version": "mflow-python-tool-v1",
+    "image": "sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4",
+    "baselineImage": "sha256:2fc2c915ed384368f492e415d42f7491defbaaa29436b3013e84627fe85b57a6",
+    "matchesBaselineImage": false,
+    "executionSeconds": 30,
+    "commandSeconds": 40,
+    "outputBytes": 1048576,
+    "memory": "256m",
+    "cpus": 1,
+    "pids": 64,
+    "network": "none",
+    "persistentState": false
+  },
+  "oldScoresReused": false,
+  "testSplitAccessed": false
+}
