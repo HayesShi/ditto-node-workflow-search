@@ -11,6 +11,7 @@ import { WorkflowExecutionError } from './executor.js';
 import { nodeCatalog, validateOrganizationPlan } from './organization.js';
 import type { OrganizationSpec } from './organization-types.js';
 import { PYTHON_ACTION, assertMathPythonHealthy, withMathPythonScope } from '../ditto/python-tool.js';
+import { captureModelFailures, hasProviderFailure, type ModelFailure } from '../ditto/model-failure.js';
 
 type Output = Record<string, any>;
 type Node = OrganizationSpec['nodes'][number];
@@ -19,6 +20,10 @@ interface Input { prior: Readonly<Record<string, Output>>; consumed: ReadonlySet
 interface Builder { node(id: string, type: string, deps: readonly string[], bind: (input: Input, outputs: Record<string, unknown>) => unknown): Builder; }
 const isContext = (o: Output | undefined): o is Context => !!o && Array.isArray(o.items);
 const message = (o: Output): Message | undefined => o.revisedResult ?? o.result ?? o.message;
+// Assessment is dependency evidence, never a replacement for the answer being assessed.
+const evidence = (o: Output): Message | undefined => o.assessment !== undefined
+  ? {role:'user',content:JSON.stringify({assessment:o.assessment,issues:o.issues,...(message(o) ? {result:message(o)} : {})})}
+  : message(o);
 const text = (m: Message): string => typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
 function unwrap(type: string, value: unknown): Output {
   if (!value || typeof value !== 'object') throw new Error('Node returned no output');
@@ -31,10 +36,10 @@ function unwrap(type: string, value: unknown): Output {
 
 /** The only driver interprets searched graphs/transitions. No fixed post-plan tool loop. */
 export function runOrganization(runtime: DittoRuntime, model: ModelConfig, plan: AgentPlanSpec, task: BenchmarkTask, signal?: AbortSignal): Promise<AgentRunResult> {
-  const run = () => captureModelOutputs(records => executeOrganization(runtime, model, plan, task, records, signal));
+  const run = () => captureModelFailures(failures => captureModelOutputs(records => executeOrganization(runtime, model, plan, task, records, failures, signal)));
   return task.dataset === 'math' ? withMathPythonScope(run) : run();
 }
-async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, plan: AgentPlanSpec, task: BenchmarkTask, budgetRecords: ModelOutputRecord[], signal?: AbortSignal): Promise<AgentRunResult> {
+async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, plan: AgentPlanSpec, task: BenchmarkTask, budgetRecords: ModelOutputRecord[], failures: ModelFailure[], signal?: AbortSignal): Promise<AgentRunResult> {
   validateOrganizationPlan(plan);
   const spec = plan.organization!;
   if (task.dataset !== spec.dataset) throw new Error('Organization belongs to a different task family');
@@ -111,10 +116,13 @@ async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, pl
       const result = await runtime.loop(definition, task, signal ? {signal} : {});
       return records.length ? {...result,...summarizeProviderDiagnostics(records)} : result;
     } catch (error) {
-      if(error instanceof OutputBudgetAnswerError) {
+      if(!hasProviderFailure() && (error instanceof OutputBudgetAnswerError || failures.length)) {
+        signal?.throwIfAborted();
+        if(task.dataset === 'math') assertMathPythonHealthy();
         session?.assertHealthy();
-        session?.record({kind:'model-output-budget',answerUsable:false,error:error.message});
+        session?.record({kind:'model-output-failure',answerUsable:false,failures});
         return {answer:'',executedNodeIds:state.executedNodeIds,executedGraphIds:state.executedGraphIds,
+          ...(failures.length ? {modelFailures:[...failures]} : {}),
           ...(records.length?summarizeProviderDiagnostics(records):{...state.usage,usageKnown:state.usageKnown})};
       }
       throw new WorkflowExecutionError(error, summarizeProviderDiagnostics(records));
@@ -138,9 +146,16 @@ function bind(n: Node, deps: Record<string, Output>, consumed: ReadonlySet<strin
   const metadata = {dataset:task.dataset,taskId:task.id,nodeId:n.id,nodeType:definition.type,planRole:n.template};
   const messages: Message[] = context ? context.items.map(item => contextMessage(item)) : [{role:'user',content:task.prompt}];
   const contextMessages = new Set(messages.map(m => JSON.stringify(m)));
+  const targetEntry = ['verify','revise'].includes(n.template)
+    ? Object.entries(deps).filter(([,out])=>!!message(out)).at(-1) : undefined;
   for (const [id, out] of Object.entries(deps)) {
     if (isContext(out) || nodesTemplate(spec,id) === 'act') continue;
-    const m = message(out); if (!m || contextMessages.has(JSON.stringify(m))) continue;
+    // Core serializes target.result separately. Include the full answer only there.
+    if (id === targetEntry?.[0]) {
+      if (out.assessment !== undefined) messages.push({role:'user',content:`Assessment from ${id}:\n${JSON.stringify({assessment:out.assessment,issues:out.issues})}`});
+      continue;
+    }
+    const m = evidence(out); if (!m || contextMessages.has(JSON.stringify(m))) continue;
     // Inference advice never impersonates a real tool observation.
     if (nodesTemplate(spec,id) === 'observe') messages.push({...m,metadata:{...m.metadata,actionRequestId:out.callId}});
     else messages.push({role:'user',content:`Result from ${id} (reasoning, not evidence of tool effects):\n${text(m)}`});
@@ -151,7 +166,7 @@ function bind(n: Node, deps: Record<string, Output>, consumed: ReadonlySet<strin
     case 'sample': case 'actor': return {...request,messages:[...(config.instruction ? [{role:'system',content:config.instruction}] : []),...messages], ...(n.template === 'actor' ? {actions:tools} : {})};
     case 'cot': return {...request,objective:config.instruction,strategy:{name:config.strategy,options:config.options},constraints:{maxSteps:Number.MAX_SAFE_INTEGER}};
     case 'verify': case 'revise': {
-      const target = values.map(message).filter(Boolean).at(-1); if (!target) throw new Error('No explicitly wired reflection target');
+      const target = targetEntry && message(targetEntry[1]); if (!target) throw new Error('No explicitly wired reflection target');
       return {...request,target:{result:target},mode:config.mode,criteria:config.criteria.map((description:string,i:number)=>({id:`criterion-${i}`,description,weight:1}))};
     }
     case 'select': case 'merge': return {...request,mode:config.mode,candidates:Object.entries(deps).filter(([,out])=>!!message(out)).map(([id,out])=>({id,result:message(out)}))};
@@ -167,7 +182,7 @@ function bind(n: Node, deps: Record<string, Output>, consumed: ReadonlySet<strin
       const existing = new Set(context.items.map(item=>item.id));
       for (const [id,out] of Object.entries(deps)) {
         if (isContext(out)) continue;
-        const m = message(out); if (!m) continue;
+        const m = evidence(out); if (!m) continue;
         const isObservation = nodesTemplate(spec,id) === 'observe';
         const key = `${id}:${outputId(out)}`; if (existing.has(key)) continue;
         const meta: Record<string,any> = {role:m.role,...m.metadata,...(isObservation?{actionRequestId:out.callId}:{})};

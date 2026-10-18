@@ -96,6 +96,7 @@ async function evaluateOne(
 
   // Preserve the answer and usage even if judging fails; never turn it into a model zero.
   const providerUsage = aggregateUsage(run, attempts, prior);
+  const modelFailureEvidence = run.modelFailures?.length ? {modelFailures: run.modelFailures} : {};
   let evidence;
   try {
     evidence = await scorer.score(task.id, run.answer, prior);
@@ -107,6 +108,7 @@ async function evaluateOne(
       caseId: `${task.id}#${repeat + 1}`, valid: false,
       ...history,
       score: 0, expected: expectedLabel(scorer, task.id), prediction: run.answer,
+      ...modelFailureEvidence,
       normalizedExpected: "", normalizedPrediction: "", method: "judge-error",
       judgeRecovery: scorer.recoveryData?.(task.id) ?? prior?.judgeRecovery,
       failureKind: "judge", error: error instanceof Error ? error.message : String(error),
@@ -119,6 +121,7 @@ async function evaluateOne(
     caseId: `${task.id}#${repeat + 1}`,
     ...history,
     valid: true,
+    ...modelFailureEvidence,
     usageKnown: run.usageKnown !== false && prior?.usageKnown !== false && attempts.every(value => value.usageKnown),
     ...providerUsage,
     attempts: Object.freeze(attempts),

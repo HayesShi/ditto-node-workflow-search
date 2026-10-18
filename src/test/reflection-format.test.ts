@@ -60,9 +60,9 @@ test("SDK bridge and unmodified Core REFLECT preserve all repair consumption and
     const payload = JSON.parse(body) as { messages: { content: string }[]; temperature: number; max_tokens: number };
     assert.equal(payload.temperature, 0);
     assert.equal(payload.max_tokens, 393216);
-    const reflecting = payload.messages[0]?.content.startsWith("Assess the supplied target");
+    const reflecting = payload.messages.some(m => m.content.startsWith("Assess the supplied target"));
     const content = reflecting ? (exhausted ? invalidNull : [invalidNull, "not JSON", valid][reflectCalls++ % 3]!) : "2";
-    if (reflecting) assert.ok(payload.messages[1]!.content.includes('"mode":"verify"'));
+    if (reflecting) assert.ok(payload.messages.some(m => m.content.includes('"mode":"verify"')));
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content }, finish_reason: "stop" }], usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } })}\n\ndata: [DONE]\n\n`);
   });

@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ from pathlib import Path
 
 import httpx
 from openai import AsyncOpenAI, APIStatusError, APIConnectionError, APITimeoutError
+from repeated_output import RepetitionGuard, DegenerateOutputError
 
 
 def log(record):
@@ -89,6 +91,7 @@ def request_body(body):
 async def aggregate_stream(stream, raw, progress=None):
     """Preserve content, fragmented/interleaved tool calls, finish reason and usage."""
     calls = {}
+    guard = RepetitionGuard()
     message = {"role": "assistant", "content": ""}
     choice = {"index": 0, "message": message}
     raw["choices"] = [choice]
@@ -109,6 +112,7 @@ async def aggregate_stream(stream, raw, progress=None):
             for key in ("content", "reasoning_content"):
                 if delta.get(key) is not None:
                     message[key] = message.get(key, "") + delta[key]
+                    guard.feed('text_delta' if key == 'content' else 'reasoning_delta', delta[key])
             for fragment in delta.get("tool_calls", []):
                 call = calls.setdefault(fragment["index"], {"id": "", "type": "function",
                                         "function": {"name": "", "arguments": ""}})
@@ -119,6 +123,7 @@ async def aggregate_stream(stream, raw, progress=None):
                 for key in ("name", "arguments"):
                     call["function"][key] += fragment.get("function", {}).get(key, "") or ""
                 message["tool_calls"] = [calls[index] for index in sorted(calls)]
+                guard.feed(f"action:{fragment['index']}", fragment.get('function', {}).get('arguments', '') or '')
             if part.get("finish_reason") is not None:
                 choice["finish_reason"] = part["finish_reason"]
         if progress is not None:
@@ -219,10 +224,15 @@ async def complete(client, request, timeout_ms, emit=log, attempts=3, cooldown=N
                   "contentChars": len(raw["choices"][0]["message"]["content"])})
             return {"id": request["id"], "status": 200, "body": raw, "diagnostics": diagnostics}
         except (Exception, asyncio.CancelledError) as error:
+            details = provider_error_details(error)
+            context_limit = isinstance(error, APIStatusError) and error.status_code == 400 and (
+                details.get('code') == 'context_length_exceeded' or
+                re.search(r'(?:maximum|max) context length|context (?:length|window).*(?:exceed|limit)|exceed.*context', details.get('message', ''), re.I))
+            model_code = 'DEGENERATE_OUTPUT' if isinstance(error, DegenerateOutputError) else 'MODEL_CONTEXT_LIMIT' if context_limit else None
             status = error.status_code if isinstance(error, APIStatusError) else (
-                504 if isinstance(error, (TimeoutError, APITimeoutError)) else
+                422 if model_code else 504 if isinstance(error, (TimeoutError, APITimeoutError)) else
                 499 if isinstance(error, asyncio.CancelledError) else 502)
-            transient = isinstance(error, (APIConnectionError, APITimeoutError, StreamIncompleteError)) or status in (408, 409, 429) or status >= 500
+            transient = not model_code and (isinstance(error, (APIConnectionError, APITimeoutError, StreamIncompleteError)) or status in (408, 409, 429) or status >= 500)
             delay, retry_after = rate_limit_delay(error, attempt, cooldown.wall_clock) if status == 429 else (0.5 * attempt, None)
             if status == 429:
                 cooldown.defer(delay)
@@ -230,7 +240,7 @@ async def complete(client, request, timeout_ms, emit=log, attempts=3, cooldown=N
             account(raw, True)
             emit({"phase": "error", "id": request["id"], "attempt": attempt, "status": status,
                   "errorType": type(error).__name__, "retry": retry,
-                  "serviceError": provider_error_details(error), "retryAfter": retry_after,
+                  "serviceError": details, "modelFailureCode": model_code, "retryAfter": retry_after,
                   "rateLimitCooldownSeconds": delay if status == 429 else None,
                   "retryDelaySeconds": delay if retry else None,
                   "partialResponse": raw,
@@ -240,6 +250,8 @@ async def complete(client, request, timeout_ms, emit=log, attempts=3, cooldown=N
             if not retry:
                 return {"id": request["id"], "status": status, "diagnostics": diagnostics,
                         "body": {"error": {"type": type(error).__name__, "attempts": attempt,
+                                           "source": 'model-output' if model_code else 'provider', "code": model_code,
+                                           "serviceError": details,
                                            "usageStatus": "unknown"}}}
             if status != 429:
                 await cooldown.sleep(delay)

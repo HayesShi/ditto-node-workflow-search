@@ -1,5 +1,6 @@
 import type { ModelProvider, SampleInput, SampleOutput, Usage } from "@codesoul-co/ditto/worker/infer";
 import { GENERATION } from "../protocol.js";
+import { modelFailureRecorder } from './model-failure.js';
 
 export interface ReflectionRepairEvent {
   readonly phase: "reflect-format-repair";
@@ -37,7 +38,10 @@ export function withReflectionFormatRepair(provider: ModelProvider, emit: (event
           } };
         }
         await emit({ phase: "reflect-format-repair", outcome: attempt === 3 ? "exhausted" : "retry", attempt, mode, taskId: input.metadata?.taskId, nodeId: input.metadata?.nodeId, error });
-        if (attempt === 3) throw new Error(`[REFLECT_FORMAT_ERROR] Invalid reflection after three responses: ${error}`);
+        if (attempt === 3) {
+          modelFailureRecorder()({source:'model-output',code:'REFLECT_FORMAT_ERROR'});
+          throw new Error(`[REFLECT_FORMAT_ERROR] Invalid reflection after three responses: ${error}`);
+        }
         request = { ...input, generation: GENERATION, messages: [
           ...input.messages,
           { role: "assistant", content: response.message.content },

@@ -15,6 +15,15 @@ import { acceptReceivedOutput } from "./output-limit.js";
 import { withBaselineRepetitionGuidance } from "./repetition-guidance.js";
 import { withReflectionFormatRepair } from "./reflection-format.js";
 import { appendFile } from "node:fs/promises";
+import { withModelNode } from './model-failure.js';
+
+/** Match the published structured Node contract on the actual wire request. */
+export function withStructuredNodeFormat(provider: ModelProvider): ModelProvider {
+  return { async invoke(input, options) {
+    const structured = ['INFER.REASONING.REFLECT', 'INFER.REASONING.DELIBERATE'].includes(String(input.metadata?.nodeType));
+    return provider.invoke(structured ? {...input, model:{...input.model,providerOptions:{...input.model.providerOptions,response_format:{type:'json_object'}}}} : input, options);
+  } };
+}
 
 export interface ExperimentRuntime {
   readonly runtime: DittoRuntime;
@@ -57,7 +66,7 @@ export function createExperimentRuntime(settings: ProviderSettings, options: Exp
     maxTokensField: "max_tokens", sandbox, fetch: transport!.fetch,
     providerOptions: { thinking: { type: "disabled" }, response_format: { type: "text" } }, timeoutMs: nodeDeadline,
   });
-  const checked = withReflectionFormatRepair(limitProviderConcurrency(withBaselineRepetitionGuidance(http), settings.concurrency), async (event) => {
+  const checked = withReflectionFormatRepair(limitProviderConcurrency(withStructuredNodeFormat(withBaselineRepetitionGuidance(http)), settings.concurrency), async (event) => {
     if (process.env.DITTO_PROVIDER_LOG) await appendFile(process.env.DITTO_PROVIDER_LOG,
       JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n", "utf8");
   });
@@ -68,7 +77,7 @@ export function createExperimentRuntime(settings: ProviderSettings, options: Exp
       const workflowRecords = currentProviderDiagnostics();
       return captureProviderDiagnostics(async (records) => {
         try {
-          const output = acceptReceivedOutput(input, await checked.invoke(input, options));
+          const output = acceptReceivedOutput(input, await withModelNode(input.metadata?.nodeId, () => checked.invoke(input, options)));
           const diagnostics = summarizeProviderDiagnostics(records);
           return { ...output, message: { ...output.message,
             metadata: { ...output.message.metadata, providerDiagnostics: diagnostics },

@@ -5,6 +5,7 @@ import type { ProviderSettings } from "../config.js";
 import type { ProviderCallDiagnostics } from "../domain.js";
 import { withGenerationGuidance } from "./generation-guidance.js";
 import { currentProviderDiagnostics } from "./provider-diagnostics.js";
+import { modelFailureRecorder } from './model-failure.js';
 
 /** Public fetch injection; neither Ditto npm nor AFlow source is patched. */
 export interface PythonTransportOptions {
@@ -14,7 +15,7 @@ export interface PythonTransportOptions {
 }
 export class PythonTransport {
   readonly #child: ChildProcessWithoutNullStreams;
-  readonly #pending = new Map<number, { resolve(value: Response): void; reject(error: Error): void; cleanup(): void; controller?: ReadableStreamDefaultController<Uint8Array>; diagnostics?: ProviderCallDiagnostics[] }>();
+  readonly #pending = new Map<number, { resolve(value: Response): void; reject(error: Error): void; cleanup(): void; recordFailure(value: unknown): void; controller?: ReadableStreamDefaultController<Uint8Array>; diagnostics?: ProviderCallDiagnostics[] }>();
   readonly #encoder = new TextEncoder();
   #id = 0;
   #failure: Error | undefined;
@@ -36,6 +37,7 @@ export class PythonTransport {
         const reply = JSON.parse(line) as { id: number; status: number; body: unknown; event?: "start" | "chunk" | "end" | "error"; diagnostics?: ProviderCallDiagnostics };
         const pending = this.#pending.get(reply.id);
         if (!pending) return;
+        if (reply.status !== 200 && reply.body && typeof reply.body === 'object') pending.recordFailure((reply.body as {error?: unknown}).error);
         if (reply.event === "start") {
           if (pending.controller) throw new Error("Duplicate stream start");
           const stream = new ReadableStream<Uint8Array>({
@@ -97,7 +99,7 @@ export class PythonTransport {
         else reject(new Error("Provider bridge request cancelled"));
       };
       const cleanup = (): void => init.signal?.removeEventListener("abort", aborted);
-      this.#pending.set(id, { resolve, reject, cleanup, ...(diagnostics ? { diagnostics } : {}) });
+      this.#pending.set(id, { resolve, reject, cleanup, recordFailure: modelFailureRecorder(), ...(diagnostics ? { diagnostics } : {}) });
       init.signal?.addEventListener("abort", aborted, { once: true });
       this.#child.stdin.write(JSON.stringify({ id, body, timeoutMs: this.#timeoutMs }) + "\n", (error) => {
         if (error) this.#fail(error);

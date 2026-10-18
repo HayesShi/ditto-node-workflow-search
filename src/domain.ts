@@ -166,6 +166,7 @@ export interface ScoreEvidence {
 }
 
 export interface CaseResult extends ScoreEvidence {
+  readonly modelFailures?: readonly import('./ditto/model-failure.js').ModelFailure[];
   /** Private scorer recovery state; never forwarded to the actor or optimizer. */
   readonly judgeRecovery?: unknown;
   readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
@@ -251,6 +252,7 @@ export interface ProviderCallDiagnostics {
 }
 
 export interface AgentRunResult {
+  readonly modelFailures?: readonly import('./ditto/model-failure.js').ModelFailure[];
   readonly answer: string;
   readonly executedNodeIds: readonly string[];
   readonly executedGraphIds: readonly string[];

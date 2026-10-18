@@ -1,7 +1,9 @@
 /** Shared request protocol. Actual run sizes/repeats are frozen in manifest.search. */
 export const GENERATION = Object.freeze({ temperature: 0, maxTokens: 393_216 });
 export const PROTOCOL = Object.freeze({
-  id: "ditto-topology-flash-20261018-v6",
+  id: "ditto-topology-flash-20261018-v7-engineering-repair",
+  repetitionPolicy: "MFlow@437040f/exact-stream-cycle-4096-524288-utf16",
+  modelFailurePolicy: "typed-model-output-failure-score-empty-provider-failure-invalid",
   pythonImagePolicy: 'preloaded-resolved-immutable-id-record-baseline-match',
   generation: GENERATION,
   searchSpace: "fixed-node-capabilities-full-topology-v2",
