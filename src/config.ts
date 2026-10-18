@@ -16,7 +16,7 @@ export function loadProviderSettings(env: NodeJS.ProcessEnv = process.env): Prov
   const apiKey = env.CODE_SOUL_API_KEY ?? env.DS_API_KEY;
   if (!apiKey?.trim()) throw new Error("DS_API_KEY is required (or CODE_SOUL_API_KEY for a generic provider override).");
   const concurrency = integer(env.CODE_SOUL_CONCURRENCY ?? "3", "CODE_SOUL_CONCURRENCY", 1, 4_096);
-  const timeoutMs = integer(env.CODE_SOUL_TIMEOUT_MS ?? "600000", "CODE_SOUL_TIMEOUT_MS", 1_000, 30 * 60_000);
+  const timeoutMs = integer(env.CODE_SOUL_TIMEOUT_MS ?? String(PROTOCOL.readTimeoutMs), "CODE_SOUL_TIMEOUT_MS", 1_000, 2_147_483_647);
   const url = new URL(baseUrl);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new Error("CODE_SOUL_BASE_URL must be a plain HTTP(S) URL without credentials, query, or fragment");
@@ -34,7 +34,7 @@ export interface ExperimentOptions {
   readonly outputRoot: string;
   readonly searchLimit: number;
   readonly testLimit: number;
-  readonly rounds: number;
+  readonly rounds: number | null;
   readonly repeats: number;
   readonly testRepeats: number;
   readonly evaluationConcurrency: number;
@@ -73,6 +73,8 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
   }
   const rawDataset = values.get("dataset") ?? "math";
   if (!isDataset(rawDataset)) throw new Error(`Unsupported dataset: ${rawDataset}`);
+  if (values.get('rounds') === 'none' && !['math','automationbench'].includes(rawDataset))
+    throw new Error('Unbounded rounds are supported by the full organization search only');
   const runDir = values.get("run-dir");
   const resumeDir = values.get("resume-dir");
   const resumeRound = values.get("resume-round");
@@ -91,7 +93,8 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
     outputRoot: resolve(cwd, values.get("output-root") ?? "runs"),
     searchLimit: integer(values.get("search-limit") ?? "0", "search-limit", 0, 100_000),
     testLimit: integer(values.get("test-limit") ?? "0", "test-limit", 0, 100_000),
-    rounds: integer(values.get("rounds") ?? "20", "rounds", 1, 1_000),
+    rounds: values.get('rounds') === 'none' || (!values.has('rounds') && rawDataset === 'automationbench') ? null
+      : integer(values.get("rounds") ?? String(PROTOCOL.defaultSearchRounds), "rounds", 1, 1_000),
     repeats: integer(values.get("repeats") ?? String(rawDataset === "math"
       ? PROTOCOL.validationRepeatOverrides.math : PROTOCOL.defaultValidationRepeats), "repeats", 1, 20),
     testRepeats: integer(values.get("test-repeats") ?? String(PROTOCOL.defaultTestRepeats), "test-repeats", 1, 20),

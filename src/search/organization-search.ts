@@ -50,7 +50,7 @@ export class OrganizationProposer {
   }
 }
 
-type Options = Omit<NodeWorkflowSearchOptions,'proposer'> & {readonly dataset:OrganizationSpec['dataset'];readonly proposer:Pick<OrganizationProposer,'propose'>};
+type Options = Omit<NodeWorkflowSearchOptions,'proposer'|'rounds'> & {readonly rounds:number|null;readonly dataset:OrganizationSpec['dataset'];readonly proposer:Pick<OrganizationProposer,'propose'>};
 /** Complete plans are execution artifacts; each search vertex still names one real changed/anchoring Node. */
 export class OrganizationWorkflowSearch {
   constructor(readonly options: Options) {}
@@ -66,7 +66,7 @@ export class OrganizationWorkflowSearch {
       organizationPlans:plans,...(pending?{pendingOrganization:pending}:{})});
     if(o.resume) {
       const saved=o.resume;
-      if(!saved.organizationPlans || saved.completedRounds>o.rounds) throw new Error('Organization search requires a compatible topology resume state');
+      if(!saved.organizationPlans || o.rounds !== null && saved.completedRounds>o.rounds) throw new Error('Organization search requires a compatible topology resume state');
       for(const n of saved.nodes) {
         const plan=saved.organizationPlans[n.id]; if(!plan) throw new Error('Missing resumed organization'); validateOrganizationPlan(plan);
         if(plan.organization!.dataset!==o.dataset || organizationHash(plan.organization!)!==n.pathHash || plan.leafSearchNodeId!==n.id || !plan.nodes.some(node=>node.id===n.node.id)) throw new Error('Inconsistent resumed organization');
@@ -99,7 +99,7 @@ export class OrganizationWorkflowSearch {
       pending={plan,parentId:null}; await save(); await evaluate(plan,null); pending=undefined; index=2; await save();
     }
     let stoppedBecause:SearchResult['stoppedBecause']='max-rounds';
-    while(completed<o.rounds) {
+    while(o.rounds === null || completed<o.rounds) {
       if(!pending && checkAFlowConvergence(history,3,0,o.patience).converged){stoppedBecause='converged';break;}
       let parent:SearchTreeNode; let plan:AgentPlanSpec;
       if(pending) { validateOrganizationPlan(pending.plan); parent=tree.get(pending.parentId!)!; if(!parent)throw new Error('Pending parent missing'); plan=pending.plan; }

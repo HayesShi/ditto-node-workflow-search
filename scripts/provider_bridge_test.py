@@ -205,6 +205,22 @@ class ProviderBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(records[-1]["errorType"], "TimeoutError")
         self.assertFalse(records[-1]["retry"])
 
+    async def test_long_baseline_deadline_is_not_clamped_to_ten_minutes(self):
+        fake = FakeTime()
+        calls = 0
+        def handler(request):
+            nonlocal calls
+            calls += 1
+            self.assertEqual(request.extensions['timeout']['connect'], 10)
+            self.assertGreater(request.extensions['timeout']['read'], 600)
+            if calls == 1:
+                fake.now += 601
+                return httpx.Response(500, json={'error': {'message': 'temporary service failure'}})
+            return httpx.Response(200, headers={'content-type': 'text/event-stream'}, text=sse([chunk({'content': '2'}, 'stop')]))
+        reply, _ = await self.invoke(handler, timeout=2147483647, cooldown=fake.cooldown())
+        self.assertEqual(reply['status'], 200)
+        self.assertEqual(calls, 2)
+
     async def test_cancel_is_terminal_and_usage_unknown(self):
         async def handler(_):
             raise asyncio.CancelledError()

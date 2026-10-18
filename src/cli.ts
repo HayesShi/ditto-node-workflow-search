@@ -205,7 +205,7 @@ async function search(
   };
   const optimizer = options.dataset === "math" || options.dataset === "automationbench"
     ? new OrganizationWorkflowSearch({ ...searchOptions, dataset: options.dataset, proposer: new OrganizationProposer(experiment.runtime, { provider: experiment.providerName, model: experiment.model }) })
-    : new NodeWorkflowSearch(searchOptions);
+    : new NodeWorkflowSearch({ ...searchOptions, rounds: options.rounds ?? PROTOCOL.defaultSearchRounds });
 
   try {
     const result = await optimizer.run();

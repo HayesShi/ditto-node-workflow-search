@@ -158,7 +158,9 @@ async def complete(client, request, timeout_ms, emit=log, attempts=3, cooldown=N
     attempts = max(1, min(3, attempts))
     body = request_body(request["body"])
     digest = hashlib.sha256(json.dumps(body.get("messages"), ensure_ascii=False).encode()).hexdigest()
-    deadline = cooldown.clock() + min(timeout_ms, 600000) / 1000
+    if not isinstance(timeout_ms, int) or isinstance(timeout_ms, bool) or not 1 <= timeout_ms <= 2147483647:
+        raise ValueError('timeoutMs must be an integer in [1, 2147483647]')
+    deadline = cooldown.clock() + timeout_ms / 1000
     diagnostics = {"requestId": request["id"], "attempts": 0, "failedAttempts": 0,
                    "unknownUsageAttempts": 0, "usageKnown": True,
                    "inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
@@ -199,7 +201,7 @@ async def complete(client, request, timeout_ms, emit=log, attempts=3, cooldown=N
             try:
                 async with asyncio.timeout(remaining):
                     stream = await client.chat.completions.create(**body,
-                        timeout=httpx.Timeout(remaining, connect=min(5, remaining)))
+                        timeout=httpx.Timeout(remaining, connect=min(10, remaining)))
                     async with stream:
                         await aggregate_stream(stream, raw, progress)
             finally:
@@ -271,7 +273,7 @@ async def main():
             health["requests"] += 1
             health["lastRequestAt"] = datetime.now(timezone.utc).isoformat()
             publish_health()
-            result = await complete(client, request, request.get("timeoutMs", 600000), cooldown=cooldown)
+            result = await complete(client, request, request.get("timeoutMs", 2147483647), cooldown=cooldown)
             success = result["status"] == 200
             health["successes" if success else "failures"] += 1
             health["lastSuccessAt" if success else "lastFailureAt"] = datetime.now(timezone.utc).isoformat()

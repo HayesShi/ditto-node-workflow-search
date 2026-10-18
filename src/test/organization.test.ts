@@ -82,6 +82,19 @@ test('complete optimizer JSON with length is parsed without another generation',
   try{const proposal=await new OrganizationProposer(runtime,{provider:'fixture',model:'fixture'}).propose({parent:buildOrganizationPlan(initialOrganization('math')),experiences:[],accept:validateOrganization});assert.equal(proposal.outputNodeId,'revision');assert.equal(calls,1);}finally{await runtime.close();}
 });
 
+test('unbounded organization search can pass twenty expansions and stops on convergence',async()=>{
+  let proposals=0;
+  const result=await new OrganizationWorkflowSearch({dataset:'math',rounds:null,seed:42,topK:4,patience:25,maxDepth:12,
+    async evaluate(){return evaluateTasks([task],scorer,async()=>output('3'));},
+    proposer:{async propose(request){
+      const id=`trial-${++proposals}`;
+      const spec:OrganizationSpec={...initialOrganization('math'),nodes:[...initialOrganization('math').nodes,{id,template:'sample',dependencies:['answer']}],graphs:[{id:'solve',nodeIds:['context','answer',id]}],outputNodeId:id};
+      request.accept(spec);return spec;
+    }},
+  }).run();
+  assert.ok(proposals>20);assert.equal(result.stoppedBecause,'converged');
+});
+
 test('topology search freezes the measured plan and resumes without reevaluating completed candidates',async()=>{
   let evaluated=0;let saved:SearchResumeState|undefined;
   const evaluate=async(plan:AgentPlanSpec)=>{evaluated++;return evaluateTasks([task],scorer,async()=>output(plan.nodes.length===3?'2':'3'));};

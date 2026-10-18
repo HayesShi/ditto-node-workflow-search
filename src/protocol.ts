@@ -1,7 +1,8 @@
 /** Shared request protocol. Actual run sizes/repeats are frozen in manifest.search. */
 export const GENERATION = Object.freeze({ temperature: 0, maxTokens: 393_216 });
 export const PROTOCOL = Object.freeze({
-  id: "ditto-topology-flash-20261018-v4",
+  id: "ditto-topology-flash-20261018-v6",
+  pythonImagePolicy: 'preloaded-resolved-immutable-id-record-baseline-match',
   generation: GENERATION,
   searchSpace: "fixed-node-capabilities-full-topology-v2",
   baselineGuidance: "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/finite-programs-v2",
@@ -12,6 +13,7 @@ export const PROTOCOL = Object.freeze({
   candidates: 1,
   omittedParameters: Object.freeze(["top_p", "reasoning_effort"]),
   defaultSearchRounds: 20,
+  searchRoundOverrides: Object.freeze({ automationbench: null }),
   defaultValidationRepeats: 5,
   validationRepeatOverrides: Object.freeze({ math: 1 }),
   baselineValidationRepeatReferences: Object.freeze({
@@ -26,8 +28,8 @@ export const PROTOCOL = Object.freeze({
   convergenceZ: 0,
   convergenceConsecutiveRounds: 5,
   providerAttempts: 3,
-  connectTimeoutMs: 5_000,
-  readTimeoutMs: 600_000,
+  connectTimeoutMs: 10_000,
+  readTimeoutMs: 2_147_483_647,
   workflowAttempts: 5,
   workflowRetryDelayMs: 1_000,
 });

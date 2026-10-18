@@ -38,14 +38,14 @@ export async function mathPythonIdentity() {
   catch (error) { throw new Error('MATH Python requires Docker and the preloaded baseline image; no host-Python fallback', { cause: error }); }
   const image = result.stdout.trim();
   if (result.exitCode !== 0 || !/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error('MATH Python requires a running Docker daemon and a preloaded image');
-  if (image !== BASELINE_PYTHON_IMAGE) throw new Error(`MATH Python image differs from the pinned MFlow baseline: ${image}`);
-  return Object.freeze({ version: 'mflow-python-tool-v1', image, executionSeconds: 30, commandSeconds: 40,
+  return Object.freeze({ version: 'mflow-python-tool-v1', image, baselineImage: BASELINE_PYTHON_IMAGE,
+    matchesBaselineImage: image === BASELINE_PYTHON_IMAGE, executionSeconds: 30, commandSeconds: 40,
     outputBytes: 1_048_576, memory: '256m', cpus: 1, pids: 64, network: 'none', persistentState: false });
 }
 export type MathPythonIdentity = Awaited<ReturnType<typeof mathPythonIdentity>>;
 
 export function createPythonTool(image: string): RegisteredTool {
-  if (image !== BASELINE_PYTHON_IMAGE) throw new Error('Python tool must use the pinned baseline image');
+  if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error('Python tool requires a resolved immutable image ID');
   return {
     ...PYTHON_ACTION, effects: ['execute'], validate() {},
     async execute(args, context) {
