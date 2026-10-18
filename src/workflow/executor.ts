@@ -215,7 +215,7 @@ function nodeInput(
   const context = dependencyContext(dependencies);
   const messages = dependencyMessages(dependencies);
   const taskMessage = taskText(task);
-  const metadata = { experiment: "ditto-workflow-search", dataset: task.dataset, taskId: task.id, nodeId: node.id };
+  const metadata = { experiment: "ditto-workflow-search", dataset: task.dataset, taskId: task.id, nodeId: node.id, nodeType: node.type };
 
   switch (node.type) {
     case "CONTEXT.LOAD":

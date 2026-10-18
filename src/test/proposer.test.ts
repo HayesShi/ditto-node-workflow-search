@@ -1,7 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GENERATION } from "../protocol.js";
-import { parseNodeProposal } from "../search/proposer.js";
+import { NextNodeProposer, parseNodeProposal } from "../search/proposer.js";
+import { createDitto } from "@codesoul-co/ditto/runtime";
+import { createInferWorker } from "@codesoul-co/ditto/worker/infer";
+import { createInitialSampleNode, createRootNode } from "../workflow/spec.js";
+
+test("proposal input distinguishes legal local dependencies from automatic prior Graph inputs", async () => {
+  const runtime = createDitto({ workers: [createInferWorker({ defaultProvider: "fixture", providers: {
+    fixture: { async invoke(input) {
+      const request = JSON.parse(String(input.messages.at(-1)?.content));
+      assert.deepEqual(request.availableDependenciesByGraph, { solve: ["sample-1"], refine: [] });
+      assert.equal(request.priorGraphInputs.length, 2);
+      assert.match(request.dependencyRule, /REFLECT automatically receives/);
+      return { message: { role: "assistant", content: JSON.stringify({ type: "INFER.REASONING.REFLECT", graphId: "refine", dependencies: [],
+        config: { mode: "revise", criteria: ["correctness"], generation: GENERATION } }) }, finishReason: "stop" };
+    } },
+  } })] });
+  try {
+    const proposal = await new NextNodeProposer(runtime, "fixture", "fixture").propose({
+      path: [createRootNode(), createInitialSampleNode()], experiences: [], taskGoal: "fixture",
+    });
+    assert.deepEqual(proposal.dependencies, []);
+  } finally { await runtime.close(); }
+});
 
 test("optimizer parser accepts exactly one allowlisted Ditto Node proposal", () => {
   const proposal = parseNodeProposal(`\`\`\`json

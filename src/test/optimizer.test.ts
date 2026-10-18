@@ -3,6 +3,24 @@ import test from "node:test";
 import type { EvaluationSummary, NodeProposal } from "../domain.js";
 import { NodeWorkflowSearch, type SearchResumeState } from "../search/optimizer.js";
 import { SeededRandom } from "../search/random.js";
+import { ProposalValidationError } from "../search/proposer.js";
+
+test("failed proposal calls stop without consuming an evaluated search round", async () => {
+  let completed = -1;
+  await assert.rejects(new NodeWorkflowSearch({ rounds: 2, topK: 4, patience: 5, seed: 42,
+    evaluate: async () => summary(.5), proposer: { async propose() { throw new Error("HTTP 401"); } },
+    callbacks: { async state(state) { completed = state.completedRounds; } },
+  }).run(), /HTTP 401/);
+  assert.equal(completed, 0);
+});
+
+test("three repeated invalid proposals stop instead of paying for a deterministic rejection loop", async () => {
+  let calls = 0;
+  await assert.rejects(new NodeWorkflowSearch({ rounds: 2, topK: 4, patience: 5, seed: 42,
+    evaluate: async () => summary(.5), proposer: { async propose() { calls++; throw new ProposalValidationError("same cross-Graph dependency"); } },
+  }).run(), /Repeated invalid proposal/);
+  assert.equal(calls, 3);
+});
 
 test("resuming after round two preserves selection, scores and convergence without rerunning the prefix", async () => {
   const options = { rounds: 8, topK: 4, patience: 5, maxDepth: 10, seed: 42 };

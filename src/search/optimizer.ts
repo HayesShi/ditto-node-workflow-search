@@ -121,6 +121,8 @@ export class NodeWorkflowSearch {
     let evaluationHistory: Array<Pick<EvaluationSummary, "score" | "standardDeviation">>;
     let completedRounds = 0;
     let proposalFailures = 0;
+    let previousProposalError = "";
+    let repeatedProposalFailures = 0;
     let nextSearchIndex = 2;
     if (this.#resume) {
       const saved = this.#resume;
@@ -190,8 +192,7 @@ export class NodeWorkflowSearch {
     let stoppedBecause: SearchResult["stoppedBecause"] = "max-rounds";
     if (this.#resume && checkAFlowConvergence(evaluationHistory, 3, 0, this.#patience).converged) stoppedBecause = "converged";
 
-    // Format/duplicate rejections regenerate inside a round. As in frozen
-    // AFlow's outer loop, optimizer/provider exceptions consume a search slot.
+    // Failed proposals are not evaluated candidates or completed search rounds.
     while (completedRounds < this.#rounds && stoppedBecause !== "converged") {
       const round = completedRounds + 1;
       const frontier = [...tree.values()].filter((node) =>
@@ -246,14 +247,18 @@ export class NodeWorkflowSearch {
           error: error instanceof Error ? error.message : String(error),
         });
         if (error instanceof ProposalValidationError) {
+          repeatedProposalFailures = error.message === previousProposalError ? repeatedProposalFailures + 1 : 1;
+          previousProposalError = error.message;
+          if (repeatedProposalFailures >= 3) throw new Error(`Repeated invalid proposal requires repair: ${error.message}`);
           if (++proposalFailures >= 100) throw new Error("100 invalid proposals: search requires attention; no fabricated fallback was evaluated");
         } else {
-          completedRounds++;
           await saveState();
+          throw error;
         }
         continue;
       }
       proposalFailures = 0;
+      repeatedProposalFailures = 0;
 
       const searchNodeId = `search-${String(nextSearchIndex++).padStart(3, "0")}`;
       const child = createSearchTreeNode(
