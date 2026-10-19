@@ -10,5 +10,7 @@ export interface OrganizationSpec {
   readonly graphs: readonly { readonly id: string; readonly nodeIds: readonly string[] }[];
   readonly entryGraphId: string;
   readonly transitions: Readonly<Record<string, GraphTransition>>;
+  /** Explicit delivery source on a terminating graph; omitted entries use outputNodeId. */
+  readonly outputByGraph?: Readonly<Record<string, string>>;
   readonly outputNodeId: string;
 }

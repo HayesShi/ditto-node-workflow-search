@@ -1,0 +1,2714 @@
+{
+  "kind": "historical-search-sample-diagnosis-not-formal-accuracy",
+  "checks": {
+    "passed": 153,
+    "failed": 0,
+    "skipped": 0
+  },
+  "experiments": {
+    "offline": {
+      "summary": {
+        "kind": "offline-routing-replay",
+        "total": 119,
+        "valid": 119,
+        "historicalFinalCorrect": 108,
+        "solverCorrect": 115,
+        "conditionalCorrect": 109,
+        "accepted": 100,
+        "remainingWrong": [
+          16,
+          17,
+          79,
+          92,
+          98,
+          101,
+          103,
+          108,
+          113,
+          119
+        ],
+        "invalid": [],
+        "executionIdentityUnchanged": true
+      },
+      "identity": {
+        "version": 1,
+        "source": "b44dfc518746393bfb4c600f0ba468a4c48f3bc2fb1ebde1cdb53bf4f1a87ddc",
+        "build": "ad0b156f31a4a4026a6a5706034680ee7b5a48e1e81fc6c8d640a5bb67d31f30",
+        "dittoCode": "dcce238d766dd6e67cc752761b5bdc4f23804fb8fa266ae2e237ff6551147cf0",
+        "dittoVersion": "0.1.1",
+        "nodeVersion": "v24.14.1",
+        "protocol": {
+          "id": "ditto-topology-flash-20261020-v13-branch-delivery",
+          "branchDeliveryPolicy": "explicit-terminating-graph-result-source",
+          "reflectionTargetPolicy": "new-search-requires-explicit-direct-result-target",
+          "searchInfrastructureFailurePolicy": "stop-without-consuming-search-round",
+          "searchResumeBoundary": "zero-after-baseline-supported",
+          "mathOutputContract": "MFlow@437040f/src/prompts.ts#AGENT_PROMPT-boxed-answer",
+          "reflectionRepairPolicy": "parsed-signature-or-exact-literal-container-proof-v2",
+          "proposalRejectionHistoryLimit": 12,
+          "proposalStagnationLimit": 3,
+          "proposalStagnationPolicy": "engineering-failure-never-freeze-or-test",
+          "proposalRoundPolicy": "rejected-rounds-still-consume-original-budget",
+          "automationArgumentPolicy": "trello-object-body-and-public-path-query-guard-v2",
+          "repetitionPolicy": "MFlow@437040f/exact-stream-cycle-4096-524288-utf16",
+          "modelFailurePolicy": "typed-model-output-failure-score-empty-provider-failure-invalid",
+          "pythonImagePolicy": "preloaded-resolved-immutable-id-record-baseline-match",
+          "generation": {
+            "temperature": 0,
+            "maxTokens": 393216
+          },
+          "searchSpace": "fixed-node-capabilities-full-topology-v2",
+          "baselineGuidance": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/finite-programs-v2",
+          "outputLimitPolicy": "score-received-output",
+          "thinking": "disabled",
+          "responseFormat": "text-or-node-declared-json",
+          "stream": true,
+          "candidates": 1,
+          "omittedParameters": [
+            "top_p",
+            "reasoning_effort"
+          ],
+          "defaultSearchRounds": 20,
+          "searchRoundOverrides": {
+            "automationbench": null
+          },
+          "defaultValidationRepeats": 5,
+          "validationRepeatOverrides": {
+            "math": 1
+          },
+          "baselineValidationRepeatReferences": {
+            "math": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/hb-deepseek-baselines.json#aflow.validationRounds=1",
+            "automationbench": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/automationbench-baselines.json#aflow.validationRounds=5"
+          },
+          "defaultTestRepeats": 1,
+          "selectionTopK": 4,
+          "selectionAlpha": 0.2,
+          "selectionLambda": 0.3,
+          "convergenceTopK": 3,
+          "convergenceZ": 0,
+          "convergenceConsecutiveRounds": 5,
+          "providerAttempts": 3,
+          "connectTimeoutMs": 10000,
+          "readTimeoutMs": 2147483647,
+          "workflowAttempts": 5,
+          "workflowRetryDelayMs": 1000
+        },
+        "generation": {
+          "temperature": 0,
+          "maxTokens": 393216
+        }
+      },
+      "rows": [
+        {
+          "row": 1,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 2,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 3,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 4,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 5,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 6,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 7,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 8,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 9,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 10,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 11,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 12,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 13,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 14,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 15,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 16,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 17,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 18,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 19,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 20,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 21,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 22,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 23,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 24,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 25,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 26,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 27,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 28,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 29,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 30,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 31,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 32,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 33,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 34,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 35,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 36,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 37,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 38,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 39,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 40,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 41,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 42,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 43,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 44,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 45,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 46,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 47,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 48,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 49,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 50,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 51,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 52,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 53,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 54,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 55,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 56,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 57,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 58,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 59,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 60,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 61,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 62,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 63,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 64,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 0,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 65,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 66,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 67,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 68,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 69,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 70,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 71,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 72,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 73,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 74,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 75,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 76,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 77,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 78,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 79,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 0,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver"
+          ],
+          "executedGraphIds": [
+            "solve"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "DEGENERATE_OUTPUT",
+              "nodeId": "solver"
+            }
+          ]
+        },
+        {
+          "row": 80,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 81,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 82,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 83,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 84,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 85,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 86,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 87,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 88,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 89,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 90,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 91,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 92,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 0,
+          "score": 0,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 93,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 94,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 95,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 96,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 97,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 98,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 99,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 100,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 101,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 0,
+          "score": 0,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 102,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 103,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "DEGENERATE_OUTPUT",
+              "nodeId": "checker"
+            }
+          ]
+        },
+        {
+          "row": 104,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 105,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 106,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 107,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 108,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "checker",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "checker"
+            }
+          ]
+        },
+        {
+          "row": 109,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 110,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 111,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 112,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 113,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "checker",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "checker"
+            }
+          ]
+        },
+        {
+          "row": 114,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 115,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 116,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 117,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 118,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 119,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "checker",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "checker"
+            }
+          ]
+        }
+      ]
+    },
+    "live15": {
+      "summary": {
+        "kind": "cached-solver-live-review",
+        "total": 15,
+        "valid": 15,
+        "historicalFinalCorrect": 4,
+        "solverCorrect": 11,
+        "conditionalCorrect": 6,
+        "accepted": 4,
+        "remainingWrong": [
+          16,
+          17,
+          44,
+          79,
+          92,
+          98,
+          101,
+          108,
+          119
+        ],
+        "invalid": [],
+        "executionIdentityUnchanged": true
+      },
+      "identity": {
+        "version": 1,
+        "source": "b44dfc518746393bfb4c600f0ba468a4c48f3bc2fb1ebde1cdb53bf4f1a87ddc",
+        "build": "ad0b156f31a4a4026a6a5706034680ee7b5a48e1e81fc6c8d640a5bb67d31f30",
+        "dittoCode": "dcce238d766dd6e67cc752761b5bdc4f23804fb8fa266ae2e237ff6551147cf0",
+        "dittoVersion": "0.1.1",
+        "nodeVersion": "v24.14.1",
+        "protocol": {
+          "id": "ditto-topology-flash-20261020-v13-branch-delivery",
+          "branchDeliveryPolicy": "explicit-terminating-graph-result-source",
+          "reflectionTargetPolicy": "new-search-requires-explicit-direct-result-target",
+          "searchInfrastructureFailurePolicy": "stop-without-consuming-search-round",
+          "searchResumeBoundary": "zero-after-baseline-supported",
+          "mathOutputContract": "MFlow@437040f/src/prompts.ts#AGENT_PROMPT-boxed-answer",
+          "reflectionRepairPolicy": "parsed-signature-or-exact-literal-container-proof-v2",
+          "proposalRejectionHistoryLimit": 12,
+          "proposalStagnationLimit": 3,
+          "proposalStagnationPolicy": "engineering-failure-never-freeze-or-test",
+          "proposalRoundPolicy": "rejected-rounds-still-consume-original-budget",
+          "automationArgumentPolicy": "trello-object-body-and-public-path-query-guard-v2",
+          "repetitionPolicy": "MFlow@437040f/exact-stream-cycle-4096-524288-utf16",
+          "modelFailurePolicy": "typed-model-output-failure-score-empty-provider-failure-invalid",
+          "pythonImagePolicy": "preloaded-resolved-immutable-id-record-baseline-match",
+          "generation": {
+            "temperature": 0,
+            "maxTokens": 393216
+          },
+          "searchSpace": "fixed-node-capabilities-full-topology-v2",
+          "baselineGuidance": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/finite-programs-v2",
+          "outputLimitPolicy": "score-received-output",
+          "thinking": "disabled",
+          "responseFormat": "text-or-node-declared-json",
+          "stream": true,
+          "candidates": 1,
+          "omittedParameters": [
+            "top_p",
+            "reasoning_effort"
+          ],
+          "defaultSearchRounds": 20,
+          "searchRoundOverrides": {
+            "automationbench": null
+          },
+          "defaultValidationRepeats": 5,
+          "validationRepeatOverrides": {
+            "math": 1
+          },
+          "baselineValidationRepeatReferences": {
+            "math": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/hb-deepseek-baselines.json#aflow.validationRounds=1",
+            "automationbench": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/automationbench-baselines.json#aflow.validationRounds=5"
+          },
+          "defaultTestRepeats": 1,
+          "selectionTopK": 4,
+          "selectionAlpha": 0.2,
+          "selectionLambda": 0.3,
+          "convergenceTopK": 3,
+          "convergenceZ": 0,
+          "convergenceConsecutiveRounds": 5,
+          "providerAttempts": 3,
+          "connectTimeoutMs": 10000,
+          "readTimeoutMs": 2147483647,
+          "workflowAttempts": 5,
+          "workflowRetryDelayMs": 1000
+        },
+        "generation": {
+          "temperature": 0,
+          "maxTokens": 393216
+        }
+      },
+      "rows": [
+        {
+          "row": 1,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 3,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 10,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 16,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer",
+            "fixer",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "fixer"
+            }
+          ]
+        },
+        {
+          "row": 17,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 44,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 64,
+          "valid": true,
+          "historicalFinalScore": 1,
+          "solverScore": 0,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 79,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 0,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver"
+          ],
+          "executedGraphIds": [
+            "solve"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "DEGENERATE_OUTPUT",
+              "nodeId": "solver"
+            }
+          ]
+        },
+        {
+          "row": 92,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 0,
+          "score": 0,
+          "accepted": true,
+          "calls": [
+            "solver",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "accept"
+          ]
+        },
+        {
+          "row": 98,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 101,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 0,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 103,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 108,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "checker",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "checker"
+            }
+          ]
+        },
+        {
+          "row": 113,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 1,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 119,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "checker",
+            "checker"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "checker"
+            }
+          ]
+        }
+      ]
+    },
+    "traced3": {
+      "summary": {
+        "kind": "cached-solver-live-review",
+        "total": 3,
+        "valid": 3,
+        "historicalFinalCorrect": 0,
+        "solverCorrect": 3,
+        "conditionalCorrect": 0,
+        "accepted": 0,
+        "remainingWrong": [
+          16,
+          17,
+          98
+        ],
+        "invalid": [],
+        "executionIdentityUnchanged": true
+      },
+      "identity": {
+        "version": 1,
+        "source": "693d1b5c96722a80b26542211265c07171de987fa904b034607a8bbdf5dd2a00",
+        "build": "ad0b156f31a4a4026a6a5706034680ee7b5a48e1e81fc6c8d640a5bb67d31f30",
+        "dittoCode": "dcce238d766dd6e67cc752761b5bdc4f23804fb8fa266ae2e237ff6551147cf0",
+        "dittoVersion": "0.1.1",
+        "nodeVersion": "v24.14.1",
+        "protocol": {
+          "id": "ditto-topology-flash-20261020-v13-branch-delivery",
+          "branchDeliveryPolicy": "explicit-terminating-graph-result-source",
+          "reflectionTargetPolicy": "new-search-requires-explicit-direct-result-target",
+          "searchInfrastructureFailurePolicy": "stop-without-consuming-search-round",
+          "searchResumeBoundary": "zero-after-baseline-supported",
+          "mathOutputContract": "MFlow@437040f/src/prompts.ts#AGENT_PROMPT-boxed-answer",
+          "reflectionRepairPolicy": "parsed-signature-or-exact-literal-container-proof-v2",
+          "proposalRejectionHistoryLimit": 12,
+          "proposalStagnationLimit": 3,
+          "proposalStagnationPolicy": "engineering-failure-never-freeze-or-test",
+          "proposalRoundPolicy": "rejected-rounds-still-consume-original-budget",
+          "automationArgumentPolicy": "trello-object-body-and-public-path-query-guard-v2",
+          "repetitionPolicy": "MFlow@437040f/exact-stream-cycle-4096-524288-utf16",
+          "modelFailurePolicy": "typed-model-output-failure-score-empty-provider-failure-invalid",
+          "pythonImagePolicy": "preloaded-resolved-immutable-id-record-baseline-match",
+          "generation": {
+            "temperature": 0,
+            "maxTokens": 393216
+          },
+          "searchSpace": "fixed-node-capabilities-full-topology-v2",
+          "baselineGuidance": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/finite-programs-v2",
+          "outputLimitPolicy": "score-received-output",
+          "thinking": "disabled",
+          "responseFormat": "text-or-node-declared-json",
+          "stream": true,
+          "candidates": 1,
+          "omittedParameters": [
+            "top_p",
+            "reasoning_effort"
+          ],
+          "defaultSearchRounds": 20,
+          "searchRoundOverrides": {
+            "automationbench": null
+          },
+          "defaultValidationRepeats": 5,
+          "validationRepeatOverrides": {
+            "math": 1
+          },
+          "baselineValidationRepeatReferences": {
+            "math": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/hb-deepseek-baselines.json#aflow.validationRounds=1",
+            "automationbench": "MFlow@437040f17a17cbf430f3f41227ca64c576cf1056/configs/automationbench-baselines.json#aflow.validationRounds=5"
+          },
+          "defaultTestRepeats": 1,
+          "selectionTopK": 4,
+          "selectionAlpha": 0.2,
+          "selectionLambda": 0.3,
+          "convergenceTopK": 3,
+          "convergenceZ": 0,
+          "convergenceConsecutiveRounds": 5,
+          "providerAttempts": 3,
+          "connectTimeoutMs": 10000,
+          "readTimeoutMs": 2147483647,
+          "workflowAttempts": 5,
+          "workflowRetryDelayMs": 1000
+        },
+        "generation": {
+          "temperature": 0,
+          "maxTokens": 393216
+        }
+      },
+      "rows": [
+        {
+          "row": 16,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer",
+            "fixer",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ],
+          "modelFailures": [
+            {
+              "source": "model-output",
+              "code": "REFLECT_FORMAT_ERROR",
+              "nodeId": "fixer"
+            }
+          ]
+        },
+        {
+          "row": 17,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        },
+        {
+          "row": 98,
+          "valid": true,
+          "historicalFinalScore": 0,
+          "solverScore": 1,
+          "score": 0,
+          "accepted": false,
+          "calls": [
+            "solver",
+            "checker",
+            "fixer"
+          ],
+          "executedGraphIds": [
+            "solve",
+            "check",
+            "repair"
+          ]
+        }
+      ]
+    }
+  }
+}

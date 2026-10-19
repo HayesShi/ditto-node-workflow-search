@@ -84,6 +84,7 @@ async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, pl
     const definition = loop<BenchmarkTask, AgentRunResult>({ id:`${plan.id}:loop`, maxIterations:Number.MAX_SAFE_INTEGER,
       *plan() {
         let graphId: string | undefined = spec.entryGraphId;
+        let deliveredNodeId = spec.outputNodeId;
         while (graphId !== undefined) {
           signal?.throwIfAborted(); session?.assertHealthy();
           const g = spec.graphs.find(g => g.id === graphId)!;
@@ -104,10 +105,13 @@ async function executeOrganization(runtime: DittoRuntime, model: ModelConfig, pl
             }
             session?.record({kind:'organization-node',planId:plan.id,graphId,nodeId:id,nodeType:catalog[n.template]!.type,output:out});
           }
-          session?.assertHealthy(); graphId = next(spec.transitions[graphId]!, state);
+          session?.assertHealthy();
+          const successor = next(spec.transitions[graphId]!, state);
+          if (successor === undefined) deliveredNodeId = spec.outputByGraph?.[graphId] ?? spec.outputNodeId;
+          graphId = successor;
         }
-        const output = state.outputs[spec.outputNodeId];
-        const answer = output && resultMessage(output, nodes.get(spec.outputNodeId)!, state.outputs);
+        const output = state.outputs[deliveredNodeId];
+        const answer = output && resultMessage(output, nodes.get(deliveredNodeId)!, state.outputs);
         if (!answer) throw new Error('Organization ended without its declared output');
         return {answer:text(answer),executedNodeIds:state.executedNodeIds,executedGraphIds:state.executedGraphIds,...state.usage,usageKnown:state.usageKnown};
       },

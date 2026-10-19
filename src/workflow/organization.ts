@@ -51,7 +51,7 @@ function keys(v: Record<string, any>, allowed: readonly string[]): void {
 
 export function validateOrganization(value: unknown): asserts value is OrganizationSpec {
   if (!object(value)) throw new Error('Organization must be an object');
-  keys(value, ['version', 'dataset', 'nodes', 'graphs', 'entryGraphId', 'transitions', 'outputNodeId']);
+  keys(value, ['version', 'dataset', 'nodes', 'graphs', 'entryGraphId', 'transitions', 'outputNodeId', 'outputByGraph']);
   if (value.version !== 1 || !['math', 'automationbench'].includes(value.dataset)) throw new Error('Unknown organization protocol');
   const catalog = nodeCatalog(value.dataset);
   if (!Array.isArray(value.nodes) || value.nodes.length < 2 || value.nodes.length > 24) throw new Error('Organization needs 2..24 real nodes');
@@ -110,6 +110,16 @@ export function validateOrganization(value: unknown): asserts value is Organizat
     if (targets.some(target => !graphIds.has(target))) throw new Error('Unknown transition target');
     edges.set(id, targets);
   }
+  if (value.outputByGraph !== undefined) {
+    if (!object(value.outputByGraph)) throw new Error('Invalid outputByGraph');
+    for (const [graphId, nodeId] of Object.entries(value.outputByGraph)) {
+      const t = value.transitions[graphId];
+      if (!graphIds.has(graphId) || !t || !(t.kind === 'end' || t.kind === 'switch' && !t.defaultGraphId || t.kind === 'repeat' && !t.nextGraphId))
+        throw new Error('Branch output must belong to a potentially terminating graph');
+      if (typeof nodeId !== 'string' || !nodes.has(nodeId) || !['sample','actor','cot','revise','select','merge','output'].includes(nodes.get(nodeId)!.template))
+        throw new Error('Branch output must guarantee a result, never an optional checker revision');
+    }
+  }
   const noProgress = new Set(value.graphs.filter((g: any) => !g.nodeIds.some((id: string) => catalog[nodes.get(id)!.template]!.type.startsWith('INFER.') || nodes.get(id)!.template === 'act')).map((g: any) => g.id));
   const active = new Set<string>(), done = new Set<string>();
   const checkCycle = (id: string): void => {
@@ -148,7 +158,7 @@ export function validateOrganization(value: unknown): asserts value is Organizat
     const t = value.transitions[g.id];
     const conditions = t.kind === 'switch' ? t.cases.map((c: any) => c.when) : t.kind === 'repeat' ? [t.until] : [];
     if (conditions.some((c: any) => !known.has(c.sourceNodeId))) throw new Error('Transition condition source is unavailable');
-    if ((t.kind === 'end' || t.kind === 'switch' && !t.defaultGraphId || t.kind === 'repeat' && !t.nextGraphId) && !known.has(value.outputNodeId)) throw new Error('A terminating graph must have the declared output available');
+    if ((t.kind === 'end' || t.kind === 'switch' && !t.defaultGraphId || t.kind === 'repeat' && !t.nextGraphId) && !known.has(value.outputByGraph?.[g.id] ?? value.outputNodeId)) throw new Error('A terminating graph must have the declared output available');
   }
 }
 
