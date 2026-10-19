@@ -196,7 +196,7 @@ async function search(
       },
       async event(value: Readonly<Record<string, unknown>>) {
         await store.appendEvent({ at: new Date().toISOString(), ...value });
-        if (["search-resumed", "baseline-evaluated", "parent-selected", "path-evaluated", "proposal-failed", "evaluation-failed"].includes(String(value.type))) {
+        if (["search-resumed", "baseline-evaluated", "parent-selected", "path-evaluated", "proposal-failed", "search-stalled", "evaluation-failed"].includes(String(value.type))) {
           console.log(JSON.stringify({ phase: "search-progress", ...value }));
         }
       },

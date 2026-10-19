@@ -2,6 +2,7 @@ import type { ModelProvider, SampleInput, SampleOutput, Usage } from "@codesoul-
 import { GENERATION } from "../protocol.js";
 import { modelFailureRecorder } from './model-failure.js';
 import { reflectionJson } from './reflection-json.js';
+import { preservesJsonPayload } from './reflection-preservation.js';
 import { createHash } from 'node:crypto';
 
 // Exact MFlow@437040f src/prompts.ts FORMAT_PROMPT. The task is deliberately
@@ -19,6 +20,8 @@ export interface ReflectionRepairEvent {
   readonly taskId?: unknown;
   readonly nodeId?: unknown;
   readonly error?: string;
+  readonly preservation?: 'parsed-signature' | 'syntax-token-proof';
+  readonly sourceSha256?: string;
 }
 
 /** Application format repair only; the published REFLECT Node still validates every final response. */
@@ -32,6 +35,13 @@ export function withReflectionFormatRepair(provider: ModelProvider, emit: (event
       const usages: Array<Usage | undefined> = [];
       let repairSource:SampleOutput['message']['content']|undefined;
       let originalSignature:string|undefined;
+      const preservation = (content:SampleOutput['message']['content']):ReflectionRepairEvent['preservation'] => {
+        if(originalSignature!==undefined) return substantiveSignature(content)===originalSignature ? 'parsed-signature' : undefined;
+        return typeof repairSource==='string' && typeof content==='string' && preservesJsonPayload(repairSource,content) ? 'syntax-token-proof' : undefined;
+      };
+      const preservationError = () => originalSignature===undefined
+        ? 'Cannot establish content preservation from malformed source; only punctuation edits around unchanged literals and containers are accepted'
+        : 'Format repair changed substantive content or invented a missing answer; copy the original assessment, issues and result content exactly';
       let request: SampleInput = { ...input, generation: GENERATION };
       for (let attempt = 1; attempt <= 3; attempt++) {
         options.signal.throwIfAborted();
@@ -54,7 +64,7 @@ export function withReflectionFormatRepair(provider: ModelProvider, emit: (event
         // A complete length response is consumed once, never regenerated. A
         // format-only repair must not bypass content preservation at this limit.
         if (response.finishReason !== "stop") {
-          if(response.finishReason==='length' && attempt>1 && (originalSignature===undefined || substantiveSignature(response.message.content)!==originalSignature)) {
+          if(response.finishReason==='length' && attempt>1 && !preservation(response.message.content)) {
             modelFailureRecorder()({source:'model-output',code:'REFLECT_FORMAT_ERROR'});
             throw new Error('[REFLECT_FORMAT_ERROR] Format repair at the output limit did not preserve the original content');
           }
@@ -63,10 +73,10 @@ export function withReflectionFormatRepair(provider: ModelProvider, emit: (event
         let error: string | undefined;
         try { validateReflectionResponse(response.message.content, mode); }
         catch (failure) { error = failure instanceof Error ? failure.message : String(failure); }
-        if(error===undefined && attempt>1 && (originalSignature===undefined || substantiveSignature(response.message.content)!==originalSignature))
-          error='Format repair changed substantive content or invented a missing answer; copy the original assessment, issues and result content exactly';
+        if(error===undefined && attempt>1 && !preservation(response.message.content)) error=preservationError();
         if (error === undefined) {
-          if (attempt > 1) await emit({ phase: "reflect-format-repair", outcome: "recovered", attempt, mode, taskId: input.metadata?.taskId, nodeId: input.metadata?.nodeId });
+          if (attempt > 1) await emit({ phase: "reflect-format-repair", outcome: "recovered", attempt, mode, taskId: input.metadata?.taskId, nodeId: input.metadata?.nodeId,
+            preservation:preservation(response.message.content)!,sourceSha256:createHash('sha256').update(String(repairSource)).digest('hex') });
           const accepted=withSyntaxEvidence(response,raw,syntaxRepairs);
           return { ...accepted, usage: aggregateUsage(usages), message: { ...accepted.message,
             metadata: { ...accepted.message.metadata, reflectionFormat: { attempts: attempt, repairs: attempt - 1, usageKnown: usages.every((usage) => usage?.inputTokens !== undefined && usage.outputTokens !== undefined) } },

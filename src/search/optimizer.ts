@@ -31,7 +31,18 @@ export interface SearchCallbacks {
   state(value: SearchResumeState): Promise<void>;
 }
 
+export interface OrganizationProposalRejection {
+  readonly round: number;
+  readonly parentSearchNodeId: string;
+  readonly content: string;
+  readonly error: string;
+  readonly contentSha256: string;
+  readonly organizationHash?: string;
+}
+
 export interface SearchResumeState {
+  readonly organizationProposalRejections?: readonly OrganizationProposalRejection[];
+  readonly consecutiveProposalFailures?: number;
   readonly organizationPlans?: Readonly<Record<string, AgentPlanSpec>>;
   readonly pendingOrganization?: { readonly plan: AgentPlanSpec; readonly parentId: string | null };
   readonly schemaVersion: 1;

@@ -29,7 +29,11 @@ async function fixture(scenario, operation) {
   const directory=await mkdtemp(join(tmpdir(),'ditto-http-fault-'));
   const log=join(directory,'provider.jsonl');
   const previousLog=process.env.DITTO_PROVIDER_LOG;
+  const previousNoProxy=process.env.NO_PROXY;
   process.env.DITTO_PROVIDER_LOG=log;
+  // Keep the local fault server reachable when the host configures an HTTP
+  // proxy. Otherwise healthy fixture replies can become unrelated proxy 502s.
+  process.env.NO_PROXY=[previousNoProxy,'127.0.0.1','localhost'].filter(Boolean).join(',');
   const counts=new Map(); let healthy=false;
   const server=createServer(async(request,response)=>{
     let raw='';for await(const chunk of request)raw+=chunk;
@@ -59,6 +63,7 @@ async function fixture(scenario, operation) {
   try {await operation({executor,scorer,counts,scored,recover(){healthy=true;},async records(){return (await readFile(log,'utf8')).trim().split('\n').map(JSON.parse);}});}
   finally {await experiment.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
     if(previousLog===undefined)delete process.env.DITTO_PROVIDER_LOG;else process.env.DITTO_PROVIDER_LOG=previousLog;
+    if(previousNoProxy===undefined)delete process.env.NO_PROXY;else process.env.NO_PROXY=previousNoProxy;
     await rm(directory,{recursive:true,force:true});}
 }
 
