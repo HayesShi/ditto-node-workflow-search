@@ -10,7 +10,7 @@ import { createInitialSampleNode, createRootNode, materializeAgentPlan } from ".
 import { GENERATION } from "../protocol.js";
 
 const invalidNull = JSON.stringify({ assessment: { passed: true, summary: "correct" }, issues: [{ severity: "info", description: "checked", suggestedFix: null }] });
-const valid = JSON.stringify({ assessment: { passed: true, summary: "correct" }, issues: [] });
+const valid = JSON.stringify({ assessment: { passed: true, summary: "correct" }, issues: [{ severity: "info", description: "checked" }] });
 const input: SampleInput = { model: { model: "fixture" }, generation: GENERATION, metadata: { nodeType: "INFER.REASONING.REFLECT", nodeId: "reflect-1", taskId: "fixture" }, messages: [{ role: "system", content: "Reflect" }, { role: "user", content: JSON.stringify({ mode: "verify", target: { result: { role: "assistant", content: "2" } } }) }] };
 
 test("normal length completion is returned intact without a format repair call", async () => {
@@ -38,10 +38,44 @@ test("REFLECT-only repairs null optional field and non-JSON with feedback on the
   assert.deepEqual(requests[1]!.messages.slice(0, 2), input.messages);
   assert.equal(requests[1]!.messages[2]!.content, invalidNull);
   assert.match(String(requests[1]!.messages[3]!.content), /suggestedFix must be a string/);
-  assert.equal(requests[2]!.messages[2]!.content, "not JSON");
-  assert.match(String(requests[2]!.messages[3]!.content), /valid JSON object/);
+  assert.deepEqual(requests[2]!.messages.slice(0, 4), requests[1]!.messages);
+  assert.equal(requests[2]!.messages[4]!.content, "not JSON");
+  assert.match(String(requests[2]!.messages[5]!.content), /valid JSON object/);
+  assert.match(String(requests[2]!.messages[5]!.content), /Do not reassess the target, introduce new issues/);
   assert.deepEqual(events.map((event) => event.outcome), ["retry", "retry", "recovered"]);
   assert.ok(events.every((event) => !("content" in event) && !("target" in event)));
+});
+
+test("witnessed structural errors normalize without new calls and retain the original negative verdict and raw audit", async () => {
+  const content = JSON.stringify({ assessment: { passed: false, summary: "wrong arithmetic", issues: [{ severity: "error", description: "calculation" }] } });
+  let calls = 0;
+  const events: ReflectionRepairEvent[] = [];
+  const provider: ModelProvider = { async invoke(request) {
+    assert.deepEqual(request.messages, input.messages, "first checker prompt must remain unchanged");
+    calls++;
+    return { message: { role: "assistant", content }, finishReason: "stop" };
+  } };
+  const output = await withReflectionFormatRepair(provider, event => { events.push(event); }).invoke(input, { signal: new AbortController().signal });
+  assert.equal(calls, 1);
+  assert.deepEqual(JSON.parse(String(output.message.content)), { assessment: { passed: false, summary: "wrong arithmetic" }, issues: [{ severity: "error", description: "calculation" }] });
+  assert.deepEqual(output.usage, {}, "missing usage must never be replaced with zero tokens");
+  const audit = output.message.metadata?.reflectionFormat as { usageKnown: boolean; observations: { rawContent: string }[] };
+  assert.equal(audit.usageKnown, false);
+  assert.equal(audit.observations[0]!.rawContent, content);
+  assert.equal(events[0]?.outcome, "normalized");
+  assert.equal(events[0]?.rawContent, content);
+  assert.equal(events[0]?.normalizedContent, output.message.content);
+});
+
+test("identical invalid responses receive distinct cumulative corrections without dropping known issues", async () => {
+  const requests: SampleInput[] = [];
+  const content = invalidNull;
+  await assert.rejects(withReflectionFormatRepair({ async invoke(request) {
+    requests.push(request);
+    return { message: { role: "assistant", content }, finishReason: "stop" };
+  } }).invoke(input, { signal: new AbortController().signal }), /REFLECT_FORMAT_ERROR/);
+  assert.deepEqual(requests.map(request => request.messages.length), [2, 4, 6]);
+  assert.equal(new Set(requests.map(request => JSON.stringify(request.messages))).size, 3);
 });
 
 test("exhausted format failures are bounded; other Nodes and provider failures are not format-retried", async () => {

@@ -87,7 +87,7 @@ for (const nodeType of ["REFLECT", "DELIBERATE"] as const) {
 }
 
 test("actual HTTP stream length is scored; incomplete stream and service errors remain invalid", async () => {
-  let scenario: "length" | "disconnect" | "service" | "stop-repair" = "length";
+  let scenario: "length" | "disconnect" | "service" | "stop-repair" | "ambiguous" = "length";
   let calls = 0;
   let repairs = 0;
   const server = createServer(async (request, reply) => {
@@ -98,7 +98,9 @@ test("actual HTTP stream length is scored; incomplete stream and service errors 
     const reflecting = String(input.messages[0]?.content).startsWith("Assess the supplied target");
     if (reflecting && scenario === "service") { reply.writeHead(402); reply.end('{"error":{"message":"insufficient balance"}}'); return; }
     reply.writeHead(200, { "content-type": "text/event-stream" });
-    const content = !reflecting ? "2" : scenario === "stop-repair" && repairs++ === 0 ? "{bad" : JSON.stringify({ assessment: { summary: "checked" }, issues: [], revisedResult: { role: "assistant", content: "2" } });
+    const repairing = reflecting && scenario === "stop-repair" && repairs++ === 0;
+    const content = !reflecting ? "2" : scenario === "ambiguous" ? "{bad" : JSON.stringify({ assessment: { summary: "checked" },
+      issues: [{ severity: "info", description: "checked", ...(repairing ? { suggestedFix: null } : {}) }], revisedResult: { role: "assistant", content: "2" } });
     const finish = reflecting && scenario === "disconnect" ? null : reflecting && scenario === "length" ? "length" : "stop";
     reply.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content }, finish_reason: finish }], usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } })}\n\n${reflecting && scenario === "disconnect" ? "" : "data: [DONE]\n\n"}`);
   });
@@ -108,7 +110,7 @@ test("actual HTTP stream length is scored; incomplete stream and service errors 
   try {
     const executor = new WorkflowExecutor(experiment.runtime, experiment.providerName, experiment.model);
     const plan = materializeAgentPlan("http-length", [createRootNode(), createInitialSampleNode(), reflect()]);
-    for (const state of ["length", "disconnect", "service", "stop-repair"] as const) {
+    for (const state of ["length", "disconnect", "service", "stop-repair", "ambiguous"] as const) {
       scenario = state; calls = 0;
       const result = await evaluateTasks([task], { expectedLabel: () => "2", score: async (_id, answer) => scoreDropAnswer("2", answer) }, t => executor.run(plan, t), { retryAttempts: 1 });
       assert.equal(result.valid, state === "length" || state === "stop-repair");

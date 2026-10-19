@@ -11,7 +11,8 @@ that the provider will accept or produce that many tokens.
 Trajectory steps and the execution Loop use `Number.MAX_SAFE_INTEGER`; there is
 no aggregate per-task token or tool-call budget. Program-defined routing,
 strategy termination and repeat conditions still determine when a workflow ends.
-Protocol `mflow-fixed-flash-v3` distinguishes new runs from historical MATH runs;
+Protocol `mflow-fixed-flash-v4` records the `reflect-format-v2` application adapter.
+Earlier `mflow-fixed-flash-v3` runs retain their original runtime and results;
 historical results are not relabelled or resumed with changed settings.
 
 ## Fixed data
@@ -109,11 +110,29 @@ known token usage and mark unavailable consumption as unknown. A total request
 deadline bounds upstream streaming and SDK retries. An incomplete stream does
 not become a successful answer. Do not interpret missing usage as zero cost.
 
-REFLECT may make up to three format attempts after normal `stop` responses that
-violate its published output schema. These attempts preserve the target, record
-the original responses and consumption, and do not replace ordinary wrong-answer
-scoring. A `revise` response must include `revisedResult`, even when confirming
-the original answer. `length` does not trigger this format repair.
+Under `reflect-format-v2`, REFLECT first applies deterministic format normalization
+to normal `stop` responses: move misplaced `assessment.issues/revisedResult` to
+the root, remove surplus trailing object braces, and escape invalid backslashes
+inside JSON strings. Identical duplicated nested fields may be removed;
+conflicting fields, duplicate JSON keys, missing substantive fields and ambiguous
+syntax are rejected. The native schema remains the final gate. No verdict,
+issue, answer or severity is invented or coerced. Raw and normalized responses
+and each operation are retained in the adapter audit and provider log.
+
+Only unresolved formatting problems cause additional model calls, with at most
+three responses total. Corrections include the structural contract, specific
+failure, numbered feedback and the complete correction history; they explicitly
+forbid reassessing the target or introducing new issues. Retries require a safely
+validated semantic anchor; only unavailable optional `suggestedFix:null` may be
+omitted from that anchor. Every supplied assessment, summary, issue, severity,
+answer and metadata value must then match exactly. Missing substantive fields
+and ambiguous first responses fail immediately instead of authorizing a new
+assessment. Native first prompts, checker criteria and model settings remain
+unchanged. All actual consumption is
+counted and missing usage stays unknown. A `revise` response must include
+`revisedResult`; the adapter does not fabricate it. `length` and transport errors
+do not trigger this format repair. This policy requires a new run identity and
+does not retroactively validate historical failed candidate evaluations.
 
 Proposal inputs distinguish same-Graph DAG dependencies from earlier Graph
 outputs carried automatically by Loop state. Proposal failures do not count as

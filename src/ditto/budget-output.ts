@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { WorkerDefinition } from "@codesoul-co/ditto/worker";
 import type { ModelProvider, NodeResult, SampleOutput, Message } from "@codesoul-co/ditto/worker/infer";
-import { validateReflectionResponse } from "./reflection-format.js";
+import { validateReflectionResponse } from "./reflection-schema.js";
 import type { GenerationOutcome } from "../domain.js";
 
 /** Application policy for normal budget exhaustion; transport faults never enter here. */
