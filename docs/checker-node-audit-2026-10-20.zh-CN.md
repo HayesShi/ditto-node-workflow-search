@@ -14,6 +14,7 @@
 - 12 次失败及每条请求 ID、日志行号：`S/analysis/format-failure-traces.json`。
 - 12 次失败的完整重建请求与原始 target：`S/analysis/format-failure-replay.json`。已有离线回放为 49 份请求逐一核对消息哈希、12/12 复现原错误、评分器调用 0 次；见同目录 `format-failure-diagnosis.zh-CN.md:13`。
 - gold 来自 `../data/datasets/{gsm8k,drop}_validate.jsonl`。名字中的 `gsm8k-test-*` 是原始 ID；这些行属于本次固定搜索划分，不代表读取了本次保留测试集。
+- 本报告的机器可读审计位于 `S/analysis/checker-bias-audit-20261020/`：`summary.json` 保存计数、方法与输入文件 SHA-256；`matched-first-checks.jsonl` 保存 5,321 条精确哈希匹配的检查响应索引；`correct-target-false-verdict.json` 保存全部 37 组 GSM8K 正确 target / false 首判、原文、requestId、provider 行号与 samples.jsonl 行号；`audit.py` 可离线复算，不调用模型或网络。
 
 **原生节点实际上做什么**
 
@@ -78,7 +79,7 @@ DROP 4,001 包含额外工作流重试，不能说有 4,001 道题；搜索划�
 | 不符合 gold | 26 | 9 | 35 |
 | 合计 | 1,274 | 46 | 1,320 |
 
-这批记录中，“gold 数值正确但判 false”的比例是 37/1,285=2.88%；“gold 数值错误但判 true”的比例是 26/35=74.29%。这只是当前样本、当前 criteria、当前 target 的代理冲突率，不是检查器通用误报率/漏报率的实验估计。正确最终数值可能伴随错误推理；官方答案也可能依赖约定或有争议。重复题、temperature=0、同一模型担任 solver/checker，以及 schema 失败的选择效应，进一步限制外推。
+这批记录中，“gold 数值正确但判 false”的比例是 37/1,285=2.88%；“gold 数值错误但判 true”的比例是 26/35=74.29%。37 次涉及 14 道不同题目，不是 37 道独立题。这只是当前样本、当前 criteria、当前 target 的代理冲突率，不是检查器通用误报率/漏报率的实验估计。正确最终数值可能伴随错误推理；官方答案也可能依赖约定或有争议。重复题、temperature=0、同一模型担任 solver/checker，以及 schema 失败的选择效应，进一步限制外推。
 
 **合法检查结果实际改变答案多少次**
 
