@@ -1,7 +1,8 @@
 /** Shared request protocol. Actual run sizes/repeats are frozen in manifest.search. */
 export const GENERATION = Object.freeze({ temperature: 0, maxTokens: 393_216 });
 export const PROTOCOL = Object.freeze({
-  id: "ditto-topology-flash-20261020-v11-engineering-recovery",
+  id: "ditto-topology-flash-20261020-v12-explicit-reflection-targets",
+  reflectionTargetPolicy: 'new-search-requires-explicit-direct-result-target',
   searchInfrastructureFailurePolicy: 'stop-without-consuming-search-round',
   searchResumeBoundary: 'zero-after-baseline-supported',
   mathOutputContract: 'MFlow@437040f/src/prompts.ts#AGENT_PROMPT-boxed-answer',

@@ -4,7 +4,9 @@ import type { GraphTransition } from '../domain.js';
 export interface OrganizationSpec {
   readonly version: 1;
   readonly dataset: 'math' | 'automationbench';
-  readonly nodes: readonly { readonly id: string; readonly template: string; readonly dependencies: readonly string[]; readonly feedback?: readonly string[] }[];
+  readonly nodes: readonly { readonly id: string; readonly template: string; readonly dependencies: readonly string[]; readonly feedback?: readonly string[];
+    /** Direct result dependency assessed/revised by this REFLECT node. */
+    readonly targetNodeId?: string }[];
   readonly graphs: readonly { readonly id: string; readonly nodeIds: readonly string[] }[];
   readonly entryGraphId: string;
   readonly transitions: Readonly<Record<string, GraphTransition>>;

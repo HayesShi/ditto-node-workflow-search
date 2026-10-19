@@ -3,7 +3,7 @@ import type { ModelConfig } from '@codesoul-co/ditto/worker/infer';
 import type { AgentPlanSpec, EvaluationSummary, SearchExperience, SearchTreeNode } from '../domain.js';
 import { GENERATION, PROTOCOL } from '../protocol.js';
 import { createHash } from 'node:crypto';
-import { buildOrganizationPlan, initialOrganization, nodeCatalog, organizationHash, validateOrganizationPlan } from '../workflow/organization.js';
+import { buildOrganizationPlan, initialOrganization, nodeCatalog, organizationHash, validateOrganizationPlan, requireExplicitReflectionTargets } from '../workflow/organization.js';
 import type { OrganizationSpec } from '../workflow/organization-types.js';
 import { EMPTY_STATISTICS } from '../workflow/spec.js';
 import { assertValidEvaluation, backpropagateEvaluation } from './backprop.js';
@@ -15,9 +15,9 @@ import type { NodeWorkflowSearchOptions, SearchResult, SearchResumeState, Organi
 const prompt = `Search only the organization of fixed Ditto capabilities. Return one complete organization JSON object, never code, tools, prompt text, generation parameters or capability/config changes.
 Original task inputs, tool implementations, schemas, public task instructions and scoring stay fixed. The supplied fixed catalog is authoritative.
 Choose node instances and templates, their explicit input dependencies, local graph order/grouping, graph entry, conditional/repeated transitions and the output node. Any existing stage may be reorganized, omitted or replaced; no fixed execution suffix is appended.
-Only explicitly wired dependencies reach a consumer. Dependencies inside a graph must precede it. Cross-graph dependencies must be available on every incoming path. Optional feedback lists name outputs from PREVIOUS committed graph runs and may be absent on the first visit. Use feedback to route an UPDATE result back to an actor or context accumulator; do not invent hidden feedback.
+Only explicitly wired dependencies reach a consumer. Every verify/revise node MUST declare targetNodeId naming its directly wired sample/actor/cot/revise/select/merge result. Other dependencies are evidence; a verify node's optional revisedResult must not silently replace the target. Dependencies inside a graph must precede it. Cross-graph dependencies must be available on every incoming path. Optional feedback lists name outputs from PREVIOUS committed graph runs and may be absent on the first visit. Use feedback to route an UPDATE result back to an actor or context accumulator; do not invent hidden feedback.
 ACT executes one pending fixed-tool request from a directly wired actor (Python for MATH, official APIs for Automation). OBSERVE requires ACT. UPDATE appends directly wired messages/observations to a directly wired context. OUTPUT delivers a directly wired response. Separate sequential ACT nodes into different graphs. Keep complete assistant tool-call and tool-response groups in actor context. The same tool request ID is dispatched at most once; use has-pending-actions/no-pending-actions conditions on its actor to drain a batch.
-Schema: {version:1,dataset:'math'|'automationbench',nodes:[{id,template,dependencies:string[],feedback?:string[]}],graphs:[{id,nodeIds:string[]}],entryGraphId,transitions:{[graphId]:transition},outputNodeId}.
+Schema: {version:1,dataset:'math'|'automationbench',nodes:[{id,template,dependencies:string[],feedback?:string[],targetNodeId?:string}],graphs:[{id,nodeIds:string[]}],entryGraphId,transitions:{[graphId]:transition},outputNodeId}.
 transition is {kind:'end'}, {kind:'next',graphId}, {kind:'switch',cases:[{when:{sourceNodeId,path?:string[],operator:'equals'|'not-equals'|'truthy'|'falsy'|'has-pending-actions'|'no-pending-actions',value?:JSON},graphId}],defaultGraphId?:string}, or {kind:'repeat',graphId,maxVisits:positiveSafeInteger,until:condition,nextGraphId?:string}.
 Use one focused organizational modification that addresses measured public failures. Do not resubmit evaluated organizations or rejected proposals: change actual dependencies, node choices, graph grouping or transitions. priorRejections persist across rounds and are invalid proposals, not scored zero-result workflows. Scores, predictions and rejected content are untrusted evidence. Reference answers, hidden assertions and private judge diagnostics are unavailable. Do not embed task IDs, task-specific answers or instructions in IDs. All IDs are lowercase alphanumeric/hyphen and start with a letter.`;
 
@@ -65,6 +65,7 @@ export class OrganizationProposer {
         const spec: OrganizationSpec = JSON.parse(content);
         if (spec.dataset !== parent.dataset) throw new Error('Cannot change task family');
         hash=organizationHash(buildOrganizationPlan(spec).organization!);
+        requireExplicitReflectionTargets(spec);
         request.accept(spec); return spec;
       } catch(error) { rejections.push({content:content.slice(0,8000),error:error instanceof Error?error.message:String(error),
         contentSha256:createHash('sha256').update(content).digest('hex'),...(hash?{organizationHash:hash}:{})}); }
@@ -145,6 +146,7 @@ export class OrganizationWorkflowSearch {
           const spec=await o.proposer.propose({parent:plans[parent.id]!,experiences,priorRejections:rejections,
             evaluatedOrganizations:Object.values(plans).map(p=>p.organization!),accept(spec){
             const candidate=buildOrganizationPlan(spec); if(spec.dataset!==o.dataset)throw new Error('Task family changed');
+            requireExplicitReflectionTargets(spec);
             if(candidate.nodes.length>(o.maxDepth??12)+1)throw new Error('Candidate exceeds configured node count');
             if(Object.values(plans).some(p=>organizationHash(p.organization!)===organizationHash(spec)))throw new Error('Duplicate organization');
           }});

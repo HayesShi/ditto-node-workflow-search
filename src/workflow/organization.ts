@@ -57,13 +57,19 @@ export function validateOrganization(value: unknown): asserts value is Organizat
   if (!Array.isArray(value.nodes) || value.nodes.length < 2 || value.nodes.length > 24) throw new Error('Organization needs 2..24 real nodes');
   const nodes = new Map<string, OrganizationSpec['nodes'][number]>();
   for (const n of value.nodes) {
-    if (!object(n)) throw new Error('Invalid node'); keys(n, ['id', 'template', 'dependencies', 'feedback']);
+    if (!object(n)) throw new Error('Invalid node'); keys(n, ['id', 'template', 'dependencies', 'feedback', 'targetNodeId']);
     if (typeof n.id !== 'string' || !safeId.test(n.id) || nodes.has(n.id) || !Object.hasOwn(catalog, n.template)) throw new Error('Invalid/duplicate node or template');
     if (!Array.isArray(n.dependencies) || n.dependencies.some((d: unknown) => typeof d !== 'string') || new Set(n.dependencies).size !== n.dependencies.length) throw new Error('Invalid dependencies');
     if (n.feedback !== undefined && (!Array.isArray(n.feedback) || n.feedback.some((d: unknown) => typeof d !== 'string') || new Set(n.feedback).size !== n.feedback.length)) throw new Error('Invalid previous-iteration feedback');
     nodes.set(n.id, n as OrganizationSpec['nodes'][number]);
   }
   for (const n of nodes.values()) if (n.feedback?.some(d => !nodes.has(d))) throw new Error('Unknown feedback source');
+  for(const n of nodes.values())if(n.targetNodeId!==undefined){
+    if(!['verify','revise'].includes(n.template)||typeof n.targetNodeId!=='string'||!n.dependencies.includes(n.targetNodeId))
+      throw new Error('Reflection target must name a direct dependency of a verify/revise node');
+    if(!['sample','actor','cot','revise','select','merge'].includes(nodes.get(n.targetNodeId)?.template??''))
+      throw new Error('Reflection target must guarantee a result; assessments and optional revisions are evidence only');
+  }
   if (!nodes.has(value.outputNodeId) || !['sample', 'actor', 'cot', 'revise', 'verify', 'select', 'merge', 'output'].includes(nodes.get(value.outputNodeId)!.template)) throw new Error('Output must name a result-producing node');
   if (!Array.isArray(value.graphs) || value.graphs.length < 1 || value.graphs.length > 24) throw new Error('Invalid graphs');
   const owner = new Map<string, string>(); const graphIds = new Set<string>();
@@ -156,6 +162,13 @@ function normalized(spec: OrganizationSpec): OrganizationSpec {
 }
 export function organizationHash(spec: OrganizationSpec): string {
   return createHash('sha256').update(JSON.stringify(normalized(spec))).digest('hex');
+}
+/** New search proposals cannot delegate target choice to dependency order.
+ * Legacy plans remain readable under their original execution identity.
+ */
+export function requireExplicitReflectionTargets(spec:OrganizationSpec):void {
+  if(spec.nodes.some(n=>['verify','revise'].includes(n.template)&&n.targetNodeId===undefined))
+    throw new Error('New reflection proposals require targetNodeId naming a direct result dependency');
 }
 export function buildOrganizationPlan(spec: OrganizationSpec, leaf = 'search-001'): AgentPlanSpec {
   validateOrganization(spec);

@@ -21,7 +21,7 @@ test('CLI searches a full topology, freezes it, tests it and rejects a mismatche
     let content='3';
     if(input.messages.some(m=>String(m.content).startsWith('Search only the organization'))){
       const {parent}=JSON.parse(input.messages.at(-1).content);
-      const spec={...parent,nodes:[...parent.nodes,{id:'revision',template:'revise',dependencies:['answer']}],graphs:[{id:'solve',nodeIds:['context','answer','revision']}],outputNodeId:'revision'};
+      const spec={...parent,nodes:[...parent.nodes,{id:'revision',template:'revise',dependencies:['answer'],targetNodeId:'answer'}],graphs:[{id:'solve',nodeIds:['context','answer','revision']}],outputNodeId:'revision'};
       content=JSON.stringify(spec);
       assert.equal(input.response_format.type,'json_object');
       assert.ok(input.messages.some(m=>String(m.content).startsWith('[MFLOW finite-programs-v2]')));

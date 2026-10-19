@@ -1,0 +1,203 @@
+{
+  "date": "2026-10-20",
+  "type": "targeted-search-set-diagnosis-not-benchmark-results",
+  "model": "deepseek-flash",
+  "temperature": 0,
+  "criteriaChangesDeployed": false,
+  "legacyAudit": {
+    "correctAnswersWithValidAssessment": 111,
+    "correctAnswersRejected": 13,
+    "wrongAnswersAssessed": 3,
+    "wrongAnswersCaught": 1
+  },
+  "promptComparisons": [
+    {
+      "variant": "checker-diagnostic",
+      "criteriaVersion": "balanced-evidence-v1",
+      "casesPerArm": 16,
+      "executionIdentityUnchanged": true,
+      "arms": {
+        "original": {
+          "usable": 14,
+          "unusable": [
+            47,
+            113
+          ],
+          "correctAnswerRejected": [
+            17,
+            16,
+            23,
+            42,
+            44
+          ],
+          "wrongAnswerCaught": [
+            64,
+            101
+          ],
+          "wrongAnswerApproved": [
+            92
+          ],
+          "revisedAnswerRows": [
+            17,
+            16,
+            23,
+            44,
+            64,
+            98,
+            101,
+            108
+          ]
+        },
+        "balanced": {
+          "usable": 12,
+          "unusable": [
+            23,
+            16,
+            47,
+            101
+          ],
+          "correctAnswerRejected": [
+            17,
+            42,
+            44,
+            98,
+            108,
+            113
+          ],
+          "wrongAnswerCaught": [
+            64
+          ],
+          "wrongAnswerApproved": [
+            92
+          ],
+          "revisedAnswerRows": [
+            17,
+            42,
+            44,
+            64,
+            98,
+            108,
+            113
+          ]
+        }
+      }
+    },
+    {
+      "variant": "checker-verify-only-diagnostic",
+      "criteriaVersion": "verify-only-evidence-v1",
+      "casesPerArm": 16,
+      "executionIdentityUnchanged": true,
+      "arms": {
+        "original": {
+          "usable": 14,
+          "unusable": [
+            23,
+            113
+          ],
+          "correctAnswerRejected": [
+            17,
+            16,
+            44,
+            108
+          ],
+          "wrongAnswerCaught": [
+            64,
+            101
+          ],
+          "wrongAnswerApproved": [
+            92
+          ],
+          "revisedAnswerRows": [
+            17,
+            16,
+            42,
+            44,
+            64,
+            108,
+            101
+          ]
+        },
+        "verify-only": {
+          "usable": 14,
+          "unusable": [
+            44,
+            113
+          ],
+          "correctAnswerRejected": [
+            16,
+            42,
+            98,
+            108
+          ],
+          "wrongAnswerCaught": [
+            64
+          ],
+          "wrongAnswerApproved": [
+            92,
+            101
+          ],
+          "revisedAnswerRows": [
+            16,
+            42
+          ]
+        }
+      }
+    }
+  ],
+  "targetBinding": {
+    "kind": "cached-solver-checker-live-fixer-binding-diagnosis",
+    "arms": {
+      "legacy": {
+        "valid": 7,
+        "correct": 3
+      },
+      "explicit": {
+        "valid": 7,
+        "correct": 3
+      }
+    },
+    "cases": [
+      {
+        "row": 16,
+        "legacy": 0,
+        "explicit": 0
+      },
+      {
+        "row": 17,
+        "explicit": 0,
+        "legacy": 0
+      },
+      {
+        "row": 44,
+        "legacy": 0,
+        "explicit": 0
+      },
+      {
+        "row": 64,
+        "explicit": 1,
+        "legacy": 1
+      },
+      {
+        "row": 92,
+        "legacy": 0,
+        "explicit": 0
+      },
+      {
+        "row": 98,
+        "legacy": 1,
+        "explicit": 1
+      },
+      {
+        "row": 101,
+        "legacy": 1,
+        "explicit": 1
+      }
+    ]
+  },
+  "fullRegression": {
+    "passed": 149,
+    "failed": 0,
+    "skipped": 0
+  },
+  "scope": "Only archived search questions and fixed solver outputs. References used by external scorer only. Test never used. Samples selected to diagnose prior failures; no general false-positive-rate or benchmark-accuracy claim."
+}

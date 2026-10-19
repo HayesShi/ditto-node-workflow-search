@@ -147,7 +147,8 @@ function bind(n: Node, deps: Record<string, Output>, consumed: ReadonlySet<strin
   const messages: Message[] = context ? context.items.map(item => contextMessage(item)) : [{role:'user',content:task.prompt}];
   const contextMessages = new Set(messages.map(m => JSON.stringify(m)));
   const targetEntry = ['verify','revise'].includes(n.template)
-    ? Object.entries(deps).filter(([,out])=>!!message(out)).at(-1) : undefined;
+    ? n.targetNodeId ? [n.targetNodeId,deps[n.targetNodeId]!] as const
+      : Object.entries(deps).filter(([,out])=>!!message(out)).at(-1) : undefined;
   for (const [id, out] of Object.entries(deps)) {
     if (isContext(out) || nodesTemplate(spec,id) === 'act') continue;
     // Core serializes target.result separately. Include the full answer only there.

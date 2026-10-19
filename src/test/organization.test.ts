@@ -24,7 +24,7 @@ const output=(answer:string):AgentRunResult=>({answer,executedNodeIds:[],execute
 const scorer={expectedLabel(){return '2';},async score(_id:string,prediction:string){return {score:Number(prediction==='2'),prediction,expected:'2',normalizedExpected:'2',normalizedPrediction:prediction,method:'fixture'};}};
 function fixture(provider:ModelProvider){const runtime=createDitto({workers:[createContextWorker(),createInferWorker({providers:{fixture:provider},defaultProvider:'fixture'})]});return {runtime,executor:new WorkflowExecutor(runtime,'fixture','fixture')};}
 function revised():OrganizationSpec {
-  return {...initialOrganization('math'),nodes:[...initialOrganization('math').nodes,{id:'revision',template:'revise',dependencies:['answer']}],
+  return {...initialOrganization('math'),nodes:[...initialOrganization('math').nodes,{id:'revision',template:'revise',dependencies:['answer'],targetNodeId:'answer'}],
     graphs:[{id:'solve',nodeIds:['context','answer','revision']}],outputNodeId:'revision'};
 }
 
