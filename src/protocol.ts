@@ -3,7 +3,9 @@ import { EXPERIMENT_EXECUTION, EXPERIMENT_GENERATION, EXPERIMENT_PROVIDER_OPTION
 /** New runs share this policy; historical manifests remain immutable. */
 export const GENERATION = EXPERIMENT_GENERATION;
 export const PROTOCOL = Object.freeze({
-  id: "mflow-fixed-flash-v5",
+  id: "mflow-fixed-flash-v6",
+  searchPolicy: "optimizer-directed-workflow-v1",
+  budgetUnit: "completed-valid-workflow-evaluation-including-initial",
   checkerPolicy: "checker-semantics-v1",
   reflectionAdapter: "reflect-format-v2",
   generation: GENERATION,
@@ -18,9 +20,6 @@ export const PROTOCOL = Object.freeze({
   searchRounds: 20,
   validationRepeats: 5,
   testRepeats: 3,
-  selectionTopK: 4,
-  selectionAlpha: 0.2,
-  selectionLambda: 0.3,
   convergenceTopK: 3,
   convergenceZ: 0,
   convergenceConsecutiveRounds: 5,

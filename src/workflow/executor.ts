@@ -256,7 +256,9 @@ function nodeInput(
       };
 
     case "INFER.REASONING.SAMPLE": {
-      if (isRawBaseline(node)) {
+      // Evolved workflows may move/rewire sample-1. Its historical ID must
+      // not discard actual prerequisite answers in those candidates.
+      if (isRawBaseline(node) && messages.length === 0) {
         return {
           messages: task.dataset === "drop" || task.dataset === "gsm8k"
             ? baselineTextMessages(task.dataset, node.config.instruction, task.prompt)

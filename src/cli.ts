@@ -6,10 +6,10 @@ import type { BenchmarkSplit, LoadedBenchmark } from "./benchmark/types.js";
 import { loadProviderSettings, parseArguments, type ExperimentOptions, type ProviderSettings } from "./config.js";
 import type { DatasetName, EvaluationSummary } from "./domain.js";
 import { createExperimentRuntime, type ExperimentRuntime } from "./ditto/runtime.js";
-import { NodeWorkflowSearch } from "./search/optimizer.js";
-import { NextNodeProposer } from "./search/proposer.js";
+import { searchDirectedWorkflows } from "./search/directed-search.js";
+import { DirectedWorkflowProposer, DIRECTED_SEARCH_POLICY } from "./search/directed-proposer.js";
 import { RunStore } from "./run/store.js";
-import { loadHistoricalResume } from "./run/resume.js";
+import { loadDirectedResume } from "./run/directed-resume.js";
 import { WorkflowExecutor } from "./workflow/executor.js";
 import { GENERATION, PROTOCOL } from "./protocol.js";
 import { assertBaselinePromptProfile, baselinePromptProfile, baselinePrompts } from "./benchmark/baseline-prompts.js";
@@ -38,13 +38,13 @@ async function search(
   const loaded = await openBenchmark(options, "validate");
   const dataPath = benchmarkPath(options, "validate");
   const dataHash = loaded.identity?.rawSha256 ?? await sha256File(dataPath);
-  const restored = options.resumeDir ? await loadHistoricalResume(options.resumeDir, options.resumeRound!) : undefined;
+  const restored = options.resumeDir ? await loadDirectedResume(options.resumeDir, options.resumeRound!, options.dataset) : undefined;
   if (restored) {
     const prior = restored.manifest;
     assertBaselinePromptProfile(options.dataset, prior.promptProfile);
     const priorSearch = prior.search as Record<string, unknown>;
     const expected = { rounds: options.rounds, repeats: options.repeats, testRepeats: options.testRepeats,
-      topK: options.topK, convergenceConsecutiveRounds: options.patience, maximumDepth: options.maximumDepth, seed: options.seed };
+      policy: DIRECTED_SEARCH_POLICY, convergenceConsecutiveRounds: options.patience };
     if (prior.model !== provider.model || prior.endpoint !== provider.baseUrl || prior.dataset !== options.dataset
       || prior.metricProfile !== metricProfile(options.dataset) || JSON.stringify(prior.protocol) !== JSON.stringify(PROTOCOL)
       || JSON.stringify(prior.generation) !== JSON.stringify(GENERATION) || prior.dittoVersion !== await dittoVersion()
@@ -70,20 +70,17 @@ async function search(
     generation: GENERATION,
     protocol: PROTOCOL,
     ...(baselinePromptProfile(options.dataset) ? { promptProfile: baselinePromptProfile(options.dataset) } : {}),
-    ...(restored ? { resumedFrom: { directory: options.resumeDir, completedSearchRounds: restored.state.completedRounds,
-      discardedIncompleteRound: restored.state.completedRounds + 1, originalProviderConcurrency: restored.manifest.providerConcurrency } } : {}),
+    ...(restored ? { resumedFrom: { directory: options.resumeDir, completedValidEvaluations: restored.state.validEvaluations,
+      pendingCandidateId: restored.state.pending?.id, originalProviderConcurrency: restored.manifest.providerConcurrency } } : {}),
     search: {
       rounds: options.rounds,
       repeats: options.repeats,
       testRepeats: options.testRepeats,
-      topK: options.topK,
-      selectionAlpha: 0.2,
-      selectionLambda: 0.3,
+      policy: DIRECTED_SEARCH_POLICY,
+      budgetUnit: "completed-valid-workflow-evaluation-including-initial",
       convergenceTopK: 3,
       convergenceZ: 0,
       convergenceConsecutiveRounds: options.patience,
-      maximumDepth: options.maximumDepth,
-      seed: options.seed,
     },
     data: {
       file: basename(dataPath),
@@ -137,73 +134,45 @@ async function search(
     await store.saveEvaluation(plan.leafSearchNodeId, summary);
     return summary;
   };
-  const proposer = new NextNodeProposer(experiment.runtime, experiment.providerName, experiment.model);
-  let checkpointScore = -Infinity;
-  const optimizer = new NodeWorkflowSearch({
-    dataset: options.dataset,
-    evaluate,
-    proposer,
-    rounds: options.rounds,
-    topK: options.topK,
-    patience: options.patience,
-    maxDepth: options.maximumDepth,
-    seed: options.seed,
-    taskGoal: taskGoal(options.dataset),
-    initialInstruction: initialInstruction(options.dataset),
-    ...(restored ? { resume: restored.state } : {}),
-    callbacks: {
-      async node(node, experience, plan) {
-        await store.saveSearchNode(node);
-        if (node.evaluation) await store.saveEvaluation(node.id, node.evaluation);
-        if (node.evaluation && plan) await store.saveCheckpoint(plan);
-        if (experience) await store.saveExperience(experience);
-        if (node.evaluation && plan && node.evaluation.score > checkpointScore) {
-          checkpointScore = node.evaluation.score;
-          await store.saveBest({ leaf: node, plan, nodePath: plan.nodes, validation: node.evaluation,
-            stoppedBecause: "search-in-progress", exploredNodes: 0 });
+  const proposer = new DirectedWorkflowProposer(experiment.runtime, experiment.providerName, experiment.model);
+  let checkpointScore = Math.max(-Infinity, ...(restored?.state.history.filter(candidate => candidate.status === "valid").map(candidate => candidate.evaluation!.score) ?? []));
+  if (restored) {
+    const best = [...restored.state.history].filter(candidate => candidate.status === "valid").sort((a, b) => b.evaluation!.score - a.evaluation!.score)[0];
+    if (best) await store.saveDirectedBest(best, restored.state.validEvaluations, "search-in-progress");
+  }
+  try {
+    const result = await searchDirectedWorkflows({
+      dataset: options.dataset, maxValidEvaluations: options.rounds, patience: options.patience,
+      taskGoal: taskGoal(options.dataset), initialInstruction: initialInstruction(options.dataset),
+      propose: request => proposer.propose(request), evaluate,
+      ...(restored ? { resume: restored.state } : {}),
+      save: state => store.saveDirectedState(state),
+      async candidate(candidate, state) {
+        if (candidate.status === "valid" && candidate.evaluation!.score > checkpointScore) {
+          checkpointScore = candidate.evaluation!.score;
+          await store.saveDirectedBest(candidate, state.validEvaluations, "search-in-progress");
         }
       },
       async event(value) {
         await store.appendEvent({ at: new Date().toISOString(), ...value });
-        if (["search-resumed", "baseline-evaluated", "parent-selected", "path-evaluated", "proposal-failed", "evaluation-failed"].includes(String(value.type))) {
-          console.log(JSON.stringify({ phase: "search-progress", ...value }));
-        }
+        console.log(JSON.stringify({ phase: "search-progress", ...value }));
       },
-      async state(value) { await store.saveResumeState(value); },
-    },
-  });
-
-  try {
-    const result = await optimizer.run();
-    const validation = result.bestLeaf.evaluation;
-    if (!validation) throw new Error("Best search leaf has no direct validation evaluation");
-    await store.saveTreeSnapshot(result.nodes);
-    await store.saveBest({
-      leaf: result.bestLeaf,
-      nodePath: result.bestPath.map((entry) => entry.node),
-      plan: result.bestPlan,
-      validation,
-      stoppedBecause: result.stoppedBecause,
-      exploredNodes: result.nodes.length,
     });
+    const validation = result.best.evaluation!;
+    await store.saveDirectedBest(result.best, result.state.validEvaluations, result.stoppedBecause);
     Object.assign(manifest, {
-      status: "frozen",
-      frozenAt: new Date().toISOString(),
-      best: {
-        leafId: result.bestLeaf.id,
-        planId: result.bestPlan.id,
-        pathHash: result.bestLeaf.pathHash,
-        nodeCount: result.bestPath.length,
-        validationScore: validation.score,
-      },
+      status: "frozen", frozenAt: new Date().toISOString(),
+      validEvaluations: result.state.validEvaluations, stoppedBecause: result.stoppedBecause,
+      best: { leafId: result.best.id, planId: result.best.plan.id, pathHash: result.best.planHash,
+        nodeCount: result.best.plan.nodes.length, validationScore: validation.score },
     });
     await store.writeManifest(manifest);
     console.log(JSON.stringify({
       phase: "search-complete",
       dataset: options.dataset,
       runDirectory: store.directory,
-      frozenLeaf: result.bestLeaf.id,
-      nodeCount: result.bestPath.length,
+      frozenLeaf: result.best.id,
+      nodeCount: result.best.plan.nodes.length,
       validationScore: validation.score,
       next: `test --dataset ${options.dataset} --run-dir ${store.directory}`,
     }));

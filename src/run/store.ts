@@ -13,6 +13,7 @@ import type {
 } from "../domain.js";
 import { checkpointForPlan, publishCheckpoint } from "./checkpoints.js";
 import type { SearchResumeState } from "../search/optimizer.js";
+import type { DirectedCandidate, DirectedSearchState } from "../search/directed-search.js";
 
 export interface FrozenProgram {
   readonly leaf: SearchTreeNode;
@@ -66,6 +67,27 @@ export class RunStore {
 
   async saveResumeState(state: SearchResumeState): Promise<void> {
     await writeJson(join(this.directory, "resume-state.json"), state);
+  }
+
+  async saveDirectedState(state: DirectedSearchState): Promise<void> {
+    await writeJson(join(this.directory, "resume-state.json"), state);
+    await writeJson(join(this.directory, "workflow-history.json"), state.history.map(({ evaluation, ...candidate }) => ({
+      ...candidate, ...(evaluation ? { evaluation: summaryWithoutResults(evaluation) } : {}),
+    })));
+  }
+
+  async saveDirectedBest(candidate: DirectedCandidate, validEvaluations: number, stoppedBecause: string): Promise<void> {
+    if (candidate.status !== "valid" || !candidate.evaluation) throw new Error("Cannot freeze an invalid candidate");
+    const directory = join(this.directory, "best");
+    await Promise.all([
+      writeJson(join(directory, "plan.json"), candidate.plan),
+      writeJson(join(directory, "node-path.json"), candidate.plan.nodes),
+      writeJson(join(directory, "graphs.json"), candidate.plan.graphs),
+      writeJson(join(directory, "loop.json"), candidate.plan.loop),
+      writeJson(join(directory, "validation-summary.json"), summaryWithoutResults(candidate.evaluation)),
+      writeJson(join(directory, "search-summary.json"), { stoppedBecause, validEvaluations,
+        bestCandidateId: candidate.id, bestScore: candidate.evaluation.score, planId: candidate.plan.id }),
+    ]);
   }
 
   async saveLiveCase(scope: string, result: CaseResult): Promise<void> {

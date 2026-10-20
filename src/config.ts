@@ -75,6 +75,9 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
   }
   const rawDataset = values.get("dataset") ?? "math";
   if (!isDataset(rawDataset)) throw new Error(`Unsupported dataset: ${rawDataset}`);
+  if (rawCommand === "search" && (values.has("top-k") || values.has("maximum-depth"))) {
+    throw new Error("Optimizer-directed search has no sampled parents or tree depth; remove --top-k and --maximum-depth");
+  }
   for (const flag of ["search-limit", "test-limit"]) {
     if (values.has(flag) && values.get(flag) !== "0") throw new Error(`${flag} must be 0: formal evaluation uses the complete pinned MFlow split without sampling`);
   }
@@ -92,7 +95,7 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
     dataset: rawDataset,
     dataDir: resolve(cwd, values.get("data-dir") ?? "data/datasets"),
     ...(runDir ? { runDir: resolve(cwd, runDir) } : {}),
-    ...(resumeDir ? { resumeDir: resolve(cwd, resumeDir), resumeRound: integer(resumeRound!, "resume-round", 1, 1_000) } : {}),
+    ...(resumeDir ? { resumeDir: resolve(cwd, resumeDir), resumeRound: integer(resumeRound!, "resume-round", 0, 1_000) } : {}),
     outputRoot: resolve(cwd, values.get("output-root") ?? "runs"),
     searchLimit: integer(values.get("search-limit") ?? "0", "search-limit", 0, 100_000),
     testLimit: integer(values.get("test-limit") ?? "0", "test-limit", 0, 100_000),

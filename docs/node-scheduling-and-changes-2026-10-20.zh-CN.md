@@ -1,3 +1,5 @@
+> 历史说明：本文记录 v5 的节点调度与当时搜索机制。正式搜索已由 [v6 协议](optimizer-directed-search-v6.zh-CN.md) 改为优化器主导的完整流程候选；原文中的父流程抽样和末尾追加不再适用于 v6。
+
 **节点调度体系与本次修改报告（2026-10-20）**
 
 范围：DROP / GSM8K 工作流搜索，Ditto npm 固定版本 0.1.1；新应用协议 `mflow-fixed-flash-v5`、格式适配 `reflect-format-v2`、checker 行为 `checker-semantics-v1`。原实验冻结提交为 `dac1fb9e6926fdbdb5794e1794a466fc3e96cd0d`。本文区分历史行为与本次实现；本地其他未提交的 AutomationBench 工作不在本次提交范围。
