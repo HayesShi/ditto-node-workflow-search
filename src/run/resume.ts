@@ -32,10 +32,15 @@ export async function loadHistoricalResume(directory: string, round: number, cod
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
   if (saved?.completedRounds === round) {
     if (saved.schemaVersion !== 1) throw new Error("Unsupported search resume state");
+    if (saved.nodeConstruction) {
+      const evaluations = await Promise.all(saved.nodeConstruction.evaluations.map(async r => ({...r,evaluation:await readEvaluation(directory,r.id,r.evaluation.score)})));
+      return {manifest,state:{...saved,nodeConstruction:{...saved.nodeConstruction,evaluations}}};
+    }
     const nodes = await Promise.all(saved.nodes.map(async node => node.evaluation
       ? { ...node, evaluation: await readEvaluation(directory, node.id, node.evaluation.score) } : node));
     return { manifest, state: { ...saved, nodes } };
   }
+  if (saved?.nodeConstruction) throw new Error("Real-node search resumes only from its latest atomic construction state");
   if (saved?.organizationPlans) throw new Error("Organization resume requires its latest completed boundary; historical prefix reconstruction is not supported");
   const settings = manifest.search as { seed: number; topK: number; maximumDepth: number };
   const events = await jsonLines<Record<string, unknown>>(join(directory, "search-events.jsonl"));

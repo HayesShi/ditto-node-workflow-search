@@ -99,6 +99,8 @@ export interface SearchNodeStatistics {
 }
 
 export interface SearchTreeNode {
+  /** Fixed template binding of this actual node version; execution assembly is stored separately. */
+  readonly organizationBinding?: import('./workflow/organization-types.js').OrganizationSpec['nodes'][number];
   readonly id: string;
   readonly searchParentId: string | null;
   readonly depth: number;
@@ -227,6 +229,8 @@ export interface EvaluationSummary {
 }
 
 export interface SearchExperience {
+  readonly constructionBranchId?: string;
+  readonly comparisonEvaluationId?: string;
   readonly organization?: import("./workflow/organization-types.js").OrganizationSpec;
   readonly searchNodeId: string;
   readonly parentSearchNodeId: string | null;

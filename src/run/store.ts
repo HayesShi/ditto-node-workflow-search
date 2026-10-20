@@ -118,6 +118,10 @@ export class RunStore {
     ]);
   }
 
+  async appendWorkflowEvaluation(record: import('../search/node-construction.js').WorkflowEvaluation): Promise<void> {
+    await appendJsonLine(join(this.directory, 'workflow-evaluations.jsonl'), {...record,evaluation:summaryWithoutResults(record.evaluation)});
+  }
+
   async saveTest(summary: EvaluationSummary): Promise<void> {
     const directory = join(this.directory, "test");
     await mkdir(directory, { recursive: true });

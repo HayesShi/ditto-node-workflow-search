@@ -73,6 +73,8 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
   }
   const rawDataset = values.get("dataset") ?? "math";
   if (!isDataset(rawDataset)) throw new Error(`Unsupported dataset: ${rawDataset}`);
+  if (values.get('rounds') === 'none' && ['math','automationbench'].includes(rawDataset))
+    throw new Error('Real-node search requires a finite effective-experiment budget; use --rounds 20');
   if (values.get('rounds') === 'none' && !['math','automationbench'].includes(rawDataset))
     throw new Error('Unbounded rounds are supported by the full organization search only');
   const runDir = values.get("run-dir");
@@ -93,7 +95,7 @@ export function parseArguments(argv: readonly string[], cwd = process.cwd()): Ex
     outputRoot: resolve(cwd, values.get("output-root") ?? "runs"),
     searchLimit: integer(values.get("search-limit") ?? "0", "search-limit", 0, 100_000),
     testLimit: integer(values.get("test-limit") ?? "0", "test-limit", 0, 100_000),
-    rounds: values.get('rounds') === 'none' || (!values.has('rounds') && rawDataset === 'automationbench') ? null
+    rounds: values.get('rounds') === 'none' ? null
       : integer(values.get("rounds") ?? String(PROTOCOL.defaultSearchRounds), "rounds", 1, 1_000),
     repeats: integer(values.get("repeats") ?? String(rawDataset === "math"
       ? PROTOCOL.validationRepeatOverrides.math : PROTOCOL.defaultValidationRepeats), "repeats", 1, 20),

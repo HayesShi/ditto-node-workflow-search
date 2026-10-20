@@ -1,0 +1,126 @@
+{
+  "kind": "real-node-construction-protocol-validation",
+  "fullTests": {
+    "passed": 166,
+    "failed": 0,
+    "skipped": 0
+  },
+  "finalCoreTests": {
+    "passed": 11,
+    "failed": 0
+  },
+  "preflights": [
+    {
+      "folder": "v15-node-readiness",
+      "success": false,
+      "executionIdentityUnchanged": true,
+      "steps": [
+        {
+          "step": null,
+          "operation": null,
+          "baseBranchId": null,
+          "assembled": null,
+          "error": "NodeExpansionRejectedError: No valid node expansion: Choose an existing construction branch and active anchorNodeId"
+        }
+      ]
+    },
+    {
+      "folder": "v15-node-readiness-anchors",
+      "success": false,
+      "executionIdentityUnchanged": true,
+      "steps": [
+        {
+          "step": 1,
+          "operation": "add",
+          "baseBranchId": "branch-000002",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 2,
+          "operation": "add",
+          "baseBranchId": "branch-000003",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 3,
+          "operation": "add",
+          "baseBranchId": "branch-000004",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 4,
+          "operation": "add",
+          "baseBranchId": "branch-000005",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 5,
+          "operation": "add",
+          "baseBranchId": "branch-000006",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 6,
+          "operation": "add",
+          "baseBranchId": "branch-000007",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 7,
+          "operation": "add",
+          "baseBranchId": "branch-000008",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 8,
+          "operation": "add",
+          "baseBranchId": "branch-000009",
+          "assembled": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "folder": "v15-node-readiness-closure",
+      "success": true,
+      "executionIdentityUnchanged": true,
+      "steps": [
+        {
+          "step": 1,
+          "operation": "add",
+          "baseBranchId": "branch-000002",
+          "assembled": true,
+          "error": null
+        }
+      ]
+    },
+    {
+      "folder": "v15-automation-readiness",
+      "success": true,
+      "executionIdentityUnchanged": true,
+      "steps": [
+        {
+          "step": 1,
+          "operation": "add",
+          "baseBranchId": "branch-000006",
+          "assembled": false,
+          "error": null
+        },
+        {
+          "step": 2,
+          "operation": "add",
+          "baseBranchId": "branch-000006",
+          "assembled": true,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

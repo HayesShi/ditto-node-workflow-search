@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { pythonExecutionIdentity } from "./run/python-identity.js";
 import { currentExecutionIdentity, assertExecutionIdentity } from "./run/execution-identity.js";
-import { OrganizationProposer, OrganizationWorkflowSearch } from "./search/organization-search.js";
+import {NodeTreeWorkflowSearch} from "./search/node-tree-search.js";
+import {NodeExpansionProposer} from "./search/node-expansion-proposer.js";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { DockerPythonJudge, loadBenchmark, sha256File, automationIdentity } from "./benchmark/index.js";
@@ -54,7 +55,7 @@ async function search(
     if (automation && JSON.stringify(prior.automation) !== JSON.stringify(automation)) throw new Error("Resume AutomationBench source/environment/scorer identity differs");
     const priorSearch = prior.search as Record<string, unknown>;
     const expected = { rounds: options.rounds, repeats: options.repeats, testRepeats: options.testRepeats,
-      topK: options.topK, convergenceConsecutiveRounds: options.patience, maximumDepth: options.maximumDepth, seed: options.seed };
+      topK: options.dataset === 'math' || options.dataset === 'automationbench' ? null : options.topK, convergenceConsecutiveRounds: options.patience, maximumDepth: options.maximumDepth, seed: options.seed };
     if (prior.model !== provider.model || prior.endpoint !== provider.baseUrl || prior.dataset !== options.dataset
       || prior.metricProfile !== metricProfile(options.dataset) || JSON.stringify(prior.protocol) !== JSON.stringify(PROTOCOL)
       || JSON.stringify(prior.generation) !== JSON.stringify(GENERATION) || prior.dittoVersion !== await dittoVersion()
@@ -88,9 +89,12 @@ async function search(
       rounds: options.rounds,
       repeats: options.repeats,
       testRepeats: options.testRepeats,
-      topK: options.topK,
-      selectionAlpha: 0.2,
-      selectionLambda: 0.3,
+      topK: options.dataset === 'math' || options.dataset === 'automationbench' ? null : options.topK,
+      parentSelection: options.dataset === 'math' || options.dataset === 'automationbench' ? 'optimizer-selects-construction-branch' : 'legacy-aflow',
+      budgetUnit: 'effective-new-workflow-evaluations',
+      baselineCountsTowardBudget: false,
+      selectionAlpha: options.dataset === 'math' || options.dataset === 'automationbench' ? null : 0.2,
+      selectionLambda: options.dataset === 'math' || options.dataset === 'automationbench' ? null : 0.3,
       convergenceTopK: 3,
       convergenceZ: 0,
       convergenceConsecutiveRounds: options.patience,
@@ -194,9 +198,18 @@ async function search(
             stoppedBecause: "search-in-progress", exploredNodes: 0 });
         }
       },
+      async workflow(record: import('./search/node-construction.js').WorkflowEvaluation, experience: import('./domain.js').SearchExperience, leaf: import('./domain.js').SearchTreeNode) {
+        await store.saveEvaluation(record.id,record.evaluation);
+        await store.saveExperience(experience);
+        await store.appendWorkflowEvaluation(record);
+        if(record.evaluation.score>checkpointScore){
+          checkpointScore=record.evaluation.score;
+          await store.saveBest({leaf,plan:record.plan,nodePath:record.plan.nodes,validation:record.evaluation,stoppedBecause:'search-in-progress',exploredNodes:0});
+        }
+      },
       async event(value: Readonly<Record<string, unknown>>) {
         await store.appendEvent({ at: new Date().toISOString(), ...value });
-        if (["search-resumed", "baseline-evaluated", "parent-selected", "path-evaluated", "proposal-failed", "search-stalled", "evaluation-failed"].includes(String(value.type))) {
+        if (["search-resumed", "baseline-evaluated", "parent-selected", "node-expanded", "path-evaluated", "proposal-failed", "search-stalled", "evaluation-failed"].includes(String(value.type))) {
           console.log(JSON.stringify({ phase: "search-progress", ...value }));
         }
       },
@@ -204,7 +217,7 @@ async function search(
     },
   };
   const optimizer = options.dataset === "math" || options.dataset === "automationbench"
-    ? new OrganizationWorkflowSearch({ ...searchOptions, dataset: options.dataset, proposer: new OrganizationProposer(experiment.runtime, { provider: experiment.providerName, model: experiment.model }) })
+    ? new NodeTreeWorkflowSearch({ ...searchOptions, rounds: options.rounds ?? PROTOCOL.defaultSearchRounds, dataset: options.dataset, proposer: new NodeExpansionProposer(experiment.runtime, { provider: experiment.providerName, model: experiment.model }) })
     : new NodeWorkflowSearch({ ...searchOptions, rounds: options.rounds ?? PROTOCOL.defaultSearchRounds });
 
   try {
@@ -227,6 +240,7 @@ async function search(
       frozenAt: new Date().toISOString(),
       best: {
         leafId: result.bestLeaf.id,
+        evaluationId: result.bestPlan.leafSearchNodeId,
         planId: result.bestPlan.id,
         pathHash: result.bestLeaf.pathHash,
         planSha256: planHash(result.bestPlan),

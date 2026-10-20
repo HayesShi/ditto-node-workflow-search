@@ -41,6 +41,8 @@ export interface OrganizationProposalRejection {
 }
 
 export interface SearchResumeState {
+  readonly nodeConstruction?: import('./node-construction.js').NodeConstructionState;
+  readonly nodeExpansionRejections?: readonly import('./node-expansion-proposer.js').ExpansionRejection[];
   readonly organizationProposalRejections?: readonly OrganizationProposalRejection[];
   readonly consecutiveProposalFailures?: number;
   readonly organizationPlans?: Readonly<Record<string, AgentPlanSpec>>;

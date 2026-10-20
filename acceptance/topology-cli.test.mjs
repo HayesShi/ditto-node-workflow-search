@@ -19,10 +19,14 @@ test('CLI searches a full topology, freezes it, tests it and rejects a mismatche
     const input=JSON.parse(raw);requests++;
     assert.ok(input.messages.every(m=>!String(m.content).includes('Do not add self-checks')));
     let content='3';
-    if(input.messages.some(m=>String(m.content).startsWith('Search only the organization'))){
-      const {parent}=JSON.parse(input.messages.at(-1).content);
-      const spec={...parent,nodes:[...parent.nodes,{id:'revision',template:'revise',dependencies:['answer'],targetNodeId:'answer'}],graphs:[{id:'solve',nodeIds:['context','answer','revision']}],outputNodeId:'revision'};
-      content=JSON.stringify(spec);
+    if(input.messages.some(m=>String(m.content).startsWith('Expand a search tree of REAL'))){
+      const payload=JSON.parse(input.messages.at(-1).content);
+      const base=payload.constructionBranches.find(b=>b.nodes.length===2);
+      assert.equal(payload.nodeContracts.actor.llm,true);assert.equal(payload.nodeContracts.act.llm,false);
+      assert.equal(payload.parent,undefined);
+      content=JSON.stringify({baseBranchId:base.id,anchorNodeId:'answer',operation:'add',
+        node:{id:'revision',template:'revise',dependencies:['answer'],targetNodeId:'answer'},
+        assembly:{graphs:[{id:'solve',nodeIds:['context','answer','revision']}],entryGraphId:'solve',transitions:{solve:{kind:'end'}},outputNodeId:'revision'}});
       assert.equal(input.response_format.type,'json_object');
       assert.ok(input.messages.some(m=>String(m.content).startsWith('[MFLOW finite-programs-v2]')));
     }else if(input.messages.some(m=>String(m.content).startsWith('Assess the supplied target'))){
@@ -44,6 +48,8 @@ test('CLI searches a full topology, freezes it, tests it and rejects a mismatche
     const run=join(runs,'math',(await readdir(join(runs,'math')))[0]);
     const manifest=JSON.parse(await readFile(join(run,'manifest.json'),'utf8'));
     const plan=JSON.parse(await readFile(join(run,'best/plan.json'),'utf8'));
+    assert.equal(manifest.search.parentSelection,'optimizer-selects-construction-branch');assert.equal(manifest.search.topK,null);
+    const tree=JSON.parse(await readFile(join(run,'search-tree-final.json'),'utf8'));assert.equal(tree.length,3);assert.ok(tree.every(v=>v.organizationBinding&&!v.evaluation));
     assert.equal(manifest.status,'frozen');assert.equal(manifest.best.validationScore,1);assert.equal(plan.outputNodeId,'revision');assert.ok(plan.organization);
     assert.equal(manifest.executionIdentity.mathPython.image,'sha256:2fc2c915ed384368f492e415d42f7491defbaaa29436b3013e84627fe85b57a6');
     assert.equal(requests,4,'initial SAMPLE, proposal, candidate SAMPLE and revision');
