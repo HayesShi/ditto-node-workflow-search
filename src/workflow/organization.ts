@@ -86,11 +86,20 @@ export function validateOrganization(value: unknown): asserts value is Organizat
     if (acts > 1) throw new Error('Use separate graphs for sequential tool dispatches to prevent duplicate writes');
   }
   if (owner.size !== nodes.size || !graphIds.has(value.entryGraphId) || !object(value.transitions)) throw new Error('Incomplete graph/entry assignments');
-  if (Object.keys(value.transitions).length !== graphIds.size) throw new Error('Exactly one transition per graph is required');
+  const missingTransitions = [...graphIds].filter(id => !Object.hasOwn(value.transitions, id));
+  const undeclaredTransitionGraphs = Object.keys(value.transitions).filter(id => !graphIds.has(id));
+  if (missingTransitions.length || undeclaredTransitionGraphs.length) throw new Error(`Exactly one transition per graph is required; missing transitions for declared graphs: ${JSON.stringify(missingTransitions)}; transitions reference undeclared graphs: ${JSON.stringify(undeclaredTransitionGraphs)}. Declare each referenced graph with nonempty nodeIds or remove/rewire its transition.`);
   const edges = new Map<string, string[]>();
   const condition = (c: unknown): void => {
     if (!object(c)) throw new Error('Invalid condition'); keys(c, ['sourceNodeId', 'path', 'operator', 'value']);
     if (!nodes.has(c.sourceNodeId) || !operators.has(c.operator) || (c.path !== undefined && (!Array.isArray(c.path) || c.path.length > 8 || c.path.some((p: unknown) => typeof p !== 'string' || ['__proto__','constructor','prototype'].includes(p))))) throw new Error('Invalid condition source/operator/path');
+    const sourceTemplate = nodes.get(c.sourceNodeId)!.template;
+    if (['verify','revise'].includes(sourceTemplate) && c.path?.length) {
+      if (!['assessment','issues','revisedResult','usage'].includes(c.path[0]))
+        throw new Error(`Unknown REFLECT output path ${JSON.stringify(c.path)} on ${c.sourceNodeId}; the pass flag is at ["assessment","passed"], not ["passed"].`);
+      if (c.path[0] === 'assessment' && c.path.length > 1 && (!['passed','summary'].includes(c.path[1]) || c.path.length > 2))
+        throw new Error(`Unknown REFLECT assessment path ${JSON.stringify(c.path)}; use ["assessment","passed"] for the boolean decision.`);
+    }
   };
   for (const [id, t] of Object.entries(value.transitions)) {
     if (!graphIds.has(id) || !object(t)) throw new Error('Invalid transition source');
@@ -107,7 +116,7 @@ export function validateOrganization(value: unknown): asserts value is Organizat
       if (!Number.isSafeInteger(t.maxVisits) || t.maxVisits < 1) throw new Error('Invalid repeat bound');
       targets.push(t.graphId); if (t.nextGraphId !== undefined) targets.push(t.nextGraphId);
     } else throw new Error('Unsupported transition');
-    if (targets.some(target => !graphIds.has(target))) throw new Error('Unknown transition target');
+    if (targets.some(target => !graphIds.has(target))) throw new Error(`Unknown transition target from ${id}: ${JSON.stringify(targets.filter(target => !graphIds.has(target)))}. Every target must be declared in graphs with nonempty nodeIds.`);
     edges.set(id, targets);
   }
   if (value.outputByGraph !== undefined) {
@@ -115,7 +124,7 @@ export function validateOrganization(value: unknown): asserts value is Organizat
     for (const [graphId, nodeId] of Object.entries(value.outputByGraph)) {
       const t = value.transitions[graphId];
       if (!graphIds.has(graphId) || !t || !(t.kind === 'end' || t.kind === 'switch' && !t.defaultGraphId || t.kind === 'repeat' && !t.nextGraphId))
-        throw new Error('Branch output must belong to a potentially terminating graph');
+        throw new Error(`Branch output must belong to a potentially terminating graph: outputByGraph[${graphId}] is invalid because its transition is ${JSON.stringify(t)}. Only end, switch without defaultGraphId, or repeat without nextGraphId can terminate. outputByGraph selects a result when execution terminates; it does not stop a next/switch transition or prevent graph re-execution.`);
       if (typeof nodeId !== 'string' || !nodes.has(nodeId) || !['sample','actor','cot','revise','select','merge','output'].includes(nodes.get(nodeId)!.template))
         throw new Error('Branch output must guarantee a result, never an optional checker revision');
     }
