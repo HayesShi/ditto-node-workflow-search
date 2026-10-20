@@ -3,7 +3,8 @@ import { EXPERIMENT_EXECUTION, EXPERIMENT_GENERATION, EXPERIMENT_PROVIDER_OPTION
 /** New runs share this policy; historical manifests remain immutable. */
 export const GENERATION = EXPERIMENT_GENERATION;
 export const PROTOCOL = Object.freeze({
-  id: "mflow-fixed-flash-v4",
+  id: "mflow-fixed-flash-v5",
+  checkerPolicy: "checker-semantics-v1",
   reflectionAdapter: "reflect-format-v2",
   generation: GENERATION,
   providerOptions: EXPERIMENT_PROVIDER_OPTIONS,

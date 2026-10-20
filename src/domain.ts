@@ -155,6 +155,7 @@ export interface ScoreEvidence {
 }
 
 export interface CaseResult extends ScoreEvidence {
+  readonly checkerAudits?: readonly CheckerAudit[];
   readonly generationOutcomes?: readonly GenerationOutcome[];
   readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
   readonly providerAttempts?: number;
@@ -246,6 +247,7 @@ export interface GenerationOutcome {
 }
 
 export interface AgentRunResult {
+  readonly checkerAudits?: readonly CheckerAudit[];
   readonly generationOutcomes?: readonly GenerationOutcome[];
   readonly answer: string;
   readonly executedNodeIds: readonly string[];
@@ -258,4 +260,20 @@ export interface AgentRunResult {
   readonly failedProviderAttempts?: number;
   readonly unknownUsageAttempts?: number;
   readonly providerDiagnostics?: readonly ProviderCallDiagnostics[];
+}
+
+/** Public model evidence only. Private benchmark references never enter this record. */
+export interface CheckerAudit {
+  readonly policy: string;
+  readonly nodeId: string;
+  readonly mode: string;
+  readonly targetNodeId: string;
+  readonly originalAnswer: string;
+  readonly assessment: { readonly passed?: boolean; readonly summary: string };
+  readonly issues: readonly { readonly severity: string; readonly description: string; readonly suggestedFix?: string }[];
+  readonly proposedAnswer?: string;
+  readonly finalAnswer: string;
+  readonly decision: "check-only" | "revision-adopted" | "preserved-passed-or-no-error";
+  readonly feedbackNodeIds: readonly string[];
+  readonly criteria: readonly string[];
 }

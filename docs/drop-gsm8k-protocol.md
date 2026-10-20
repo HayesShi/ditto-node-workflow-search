@@ -11,8 +11,8 @@ that the provider will accept or produce that many tokens.
 Trajectory steps and the execution Loop use `Number.MAX_SAFE_INTEGER`; there is
 no aggregate per-task token or tool-call budget. Program-defined routing,
 strategy termination and repeat conditions still determine when a workflow ends.
-Protocol `mflow-fixed-flash-v4` records the `reflect-format-v2` application adapter.
-Earlier `mflow-fixed-flash-v3` runs retain their original runtime and results;
+Protocol `mflow-fixed-flash-v5` records `reflect-format-v2` plus the application
+checker policy `checker-semantics-v1`. Earlier v3/v4 runs retain their original runtime and results;
 historical results are not relabelled or resumed with changed settings.
 
 ## Fixed data
@@ -133,6 +133,28 @@ counted and missing usage stays unknown. A `revise` response must include
 `revisedResult`; the adapter does not fabricate it. `length` and transport errors
 do not trigger this format repair. This policy requires a new run identity and
 does not retroactively validate historical failed candidate evaluations.
+
+Under `checker-semantics-v1`, generated checker criteria must respect a fixed
+dataset contract. DROP permits passage-grounded arithmetic; computed answers
+need not be verbatim spans. The proposer and executor reject witnessed
+numeric-exact-span and closest-span substitution criteria. This text check
+covers known conflicts, not arbitrary natural-language semantics.
+
+Verify/critique outputs retain the exact checked answer; optional revisedResult
+is audited rather than adopted. A later revise must explicitly depend on the
+latest same-Graph checker. Its original answer and matching structured
+assessment/issues are passed separately. Findings for a different answer source
+or answer text are excluded. A revision is adopted only with an actionable error
+under the application gate; passing, warning-only and info-only checks preserve
+the answer. This is an adoption gate: a configured revise still executes and its
+actual model usage is charged. Raw verdicts are never flipped to manufacture a
+pass. Per-case checkerAudits retain proposals, decisions and adopted answers.
+
+The native Ditto package and first solver seed are unchanged. These application
+changes require v5 identities and new formal runs. A saved-response replay can
+verify permissions and data flow but cannot measure model behavior under the new
+prompts. See `node-scheduling-and-changes-2026-10-20.zh-CN.md` and
+`node-prompts-v5.zh-CN.md` for the complete scheduling and prompt report.
 
 Proposal inputs distinguish same-Graph DAG dependencies from earlier Graph
 outputs carried automatically by Loop state. Proposal failures do not count as

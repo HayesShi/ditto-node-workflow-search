@@ -19,6 +19,8 @@ const session = JSON.parse(await readSource(path.join(sessionRoot, "session.json
 const traces = JSON.parse(await readSource(path.join(analysisRoot, "format-failure-traces.json")));
 const previousReplay = JSON.parse(await readSource(path.join(analysisRoot, "format-failure-replay.json")));
 const importCurrent = name => import(pathToFileURL(path.join(repoRoot, "dist", name)).href);
+const { PROTOCOL } = await importCurrent("protocol.js");
+assert.equal(PROTOCOL.id, "mflow-fixed-flash-v4", "This format-only replay requires the v4 runtime at d54e3b5; use replay_checker_semantics.mjs for v5");
 const { createExperimentRuntime } = await importCurrent("ditto/runtime.js");
 const { WorkflowExecutor } = await importCurrent("workflow/executor.js");
 const { loadBenchmark } = await importCurrent("benchmark/registry.js");

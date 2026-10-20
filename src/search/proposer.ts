@@ -1,6 +1,7 @@
 import { graph, type DittoRuntime } from "@codesoul-co/ditto/runtime";
 import type { ModelConfig, NodeResult, SampleOutput } from "@codesoul-co/ditto/worker/infer";
 import { GENERATION } from "../protocol.js";
+import { checkerContract, validateCheckerCriteria } from "../workflow/checker-policy.js";
 
 export class ProposalValidationError extends Error {}
 import {
@@ -8,6 +9,7 @@ import {
   type NodeProposal,
   type SearchExperience,
   type WorkflowNodeSpec,
+  type DatasetName,
 } from "../domain.js";
 
 interface ProposalGraphInput {
@@ -27,6 +29,7 @@ const proposalGraph = graph<ProposalGraphInput>("workflow-search-proposal")
   }));
 
 export interface ProposalRequest {
+  readonly dataset?: DatasetName;
   readonly path: readonly WorkflowNodeSpec[];
   readonly experiences: readonly SearchExperience[];
   readonly taskGoal: string;
@@ -51,6 +54,7 @@ export class NextNodeProposer {
         model: this.#model,
         request: JSON.stringify({
           task: request.taskGoal,
+          checkerContract: checkerContract(request.dataset),
           rule: "Add exactly one real Ditto Node to the current construction path.",
           currentPath: request.path,
           availableDependenciesByGraph: Object.fromEntries(["solve", "refine"].map(graphId => [graphId,
@@ -67,6 +71,7 @@ export class NextNodeProposer {
       const content = unwrapSample(result.proposal);
       try {
         const proposal = parseNodeProposal(content);
+        if (proposal.type === "INFER.REASONING.REFLECT") validateCheckerCriteria(request.dataset, proposal.config.criteria);
         request.validate?.(proposal);
         return proposal;
       } catch (error) {
@@ -89,7 +94,7 @@ Allowed shapes:
 {"type":"INFER.REASONING.DELIBERATE","graphId":"solve","dependencies":string[],"config":{"mode":"select"|"merge"|"consensus"|"debate","generation":{"temperature":${GENERATION.temperature},"maxTokens":${GENERATION.maxTokens}}}}
 
 Dependencies may reference only earlier Nodes in the same graph. Cross-Graph values are carried by Loop state, not dependencies.
-For example, after SAMPLE sample-1 in solve, a REFLECT in refine must use dependencies: [], not ["sample-1"]. It still receives sample-1's answer automatically. Critique/verify can preserve the answer; revise can return a corrected answer. Prefer a small attributable addition.`;
+For example, after SAMPLE sample-1 in solve, the FIRST REFLECT in refine must use dependencies: [], not ["sample-1"]. It still receives sample-1's answer automatically. A revise after a verify/critique in the SAME refine graph MUST explicitly depend on the latest checker; its original answer and structured assessment/issues are supplied separately. verify/critique cannot replace answers; only revise can do so. Respect checkerContract as a fixed task constraint; never propose criteria that override it. Preserve correct computed DROP answers even when absent verbatim. Separate demonstrated errors from ambiguity and style advice. Prefer a small attributable addition.`;
 
 function unwrapSample(result: NodeResult<SampleOutput>): string {
   if (result.status !== "success" || !result.output) {

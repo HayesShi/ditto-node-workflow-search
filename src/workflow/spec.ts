@@ -14,6 +14,7 @@ import {
 } from "../domain.js";
 import { GENERATION } from "../protocol.js";
 import { EXPERIMENT_EXECUTION } from "../model-profile.js";
+import { validateCheckerDependencies } from "./checker-policy.js";
 
 const GRAPH_ORDER = ["prepare", "solve", "refine"] as const;
 const NODE_ID = /^[a-z][a-z0-9-]{0,63}$/;
@@ -126,6 +127,7 @@ export function validateNodePath(nodes: readonly WorkflowNodeSpec[]): void {
   if (nodes.filter((node) => node.type === "CONTEXT.LOAD").length !== 1) {
     throw new Error("A path must contain exactly one CONTEXT.LOAD Node");
   }
+  validateCheckerDependencies(nodes);
 }
 
 export function validateNode(node: WorkflowNodeSpec): void {

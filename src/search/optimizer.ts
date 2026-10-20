@@ -6,6 +6,7 @@ import type {
   SearchExperience,
   SearchTreeNode,
   WorkflowNodeSpec,
+  DatasetName,
 } from "../domain.js";
 import {
   createInitialSampleNode,
@@ -24,6 +25,7 @@ import { ProposalValidationError, type NextNodeProposer } from "./proposer.js";
 import { SeededRandom } from "./random.js";
 import { compareRunnableLeaves, selectParent } from "./selector.js";
 import { assertOneNodePerTreeEntry, nodePathTo, pathTo, validateSearchPathSemantics } from "./tree.js";
+import { validateCheckerCriteria } from "../workflow/checker-policy.js";
 
 export interface SearchCallbacks {
   /** Called once for every created search vertex. Experience exists only for an evaluated runnable path. */
@@ -54,6 +56,7 @@ export interface SearchResult {
 }
 
 export interface NodeWorkflowSearchOptions {
+  readonly dataset?: DatasetName;
   readonly evaluate: (plan: AgentPlanSpec) => Promise<EvaluationSummary>;
   readonly proposer: Pick<NextNodeProposer, "propose">;
   readonly callbacks?: Partial<SearchCallbacks>;
@@ -85,6 +88,7 @@ export class NodeWorkflowSearch {
   readonly #patience: number;
   readonly #maxDepth: number;
   readonly #taskGoal: string;
+  readonly #dataset: DatasetName | undefined;
   readonly #initialInstruction: string | undefined;
   readonly #resume: SearchResumeState | undefined;
 
@@ -107,6 +111,7 @@ export class NodeWorkflowSearch {
     this.#patience = options.patience;
     this.#maxDepth = maxDepth;
     this.#taskGoal = options.taskGoal ?? "Improve held-out task performance while keeping the Ditto workflow small and reliable.";
+    this.#dataset = options.dataset;
     this.#initialInstruction = options.initialInstruction;
     this.#resume = options.resume;
   }
@@ -220,6 +225,7 @@ export class NodeWorkflowSearch {
           readonly path: readonly WorkflowNodeSpec[];
         } => {
           const node = instantiateProposal(value, nextNodeId(parentPath, value.type));
+          if (node.type === "INFER.REASONING.REFLECT") validateCheckerCriteria(this.#dataset, node.config.criteria);
           const path = Object.freeze([...parentPath, node]);
           validateNodePath(path);
           validateSearchPathSemantics(path);
@@ -232,6 +238,7 @@ export class NodeWorkflowSearch {
           path: parentPath,
           experiences: relevantExperiences(parent.id, tree, experiences),
           taskGoal: this.#taskGoal,
+          ...(this.#dataset ? { dataset: this.#dataset } : {}),
           validate: (value) => void validateProposal(value),
         });
         // Never trust a custom proposer to have called the callback, or to return

@@ -3,6 +3,8 @@ import { EXPERIMENT_EXECUTION } from "../model-profile.js";
 import { baselineTextMessages } from "../benchmark/baseline-prompts.js";
 import { isDeepStrictEqual } from "node:util";
 import { isRawBaseline } from "./spec.js";
+import { checkerContract, validateCheckerCriteria, validateCheckerDependencies } from "./checker-policy.js";
+import { applyCheckerSemantics, type CheckedReflectionOutput, type ReflectionBinding } from "./checker-semantics.js";
 import type { Context, ContextItem as SharedContextItem } from "@codesoul-co/ditto/contracts";
 import {
   graph,
@@ -31,9 +33,10 @@ import type {
   SearchableNodeType,
   WorkflowNodeSpec,
   GenerationOutcome,
+  CheckerAudit,
 } from "../domain.js";
 
-type NormalizedNodeOutput = Context | TrajectoryOutput | SampleOutput | DeliberateOutput | ReflectOutput;
+type NormalizedNodeOutput = Context | TrajectoryOutput | SampleOutput | DeliberateOutput | ReflectOutput | CheckedReflectionOutput;
 
 interface GraphExecutionInput {
   readonly task: BenchmarkTask;
@@ -42,6 +45,7 @@ interface GraphExecutionInput {
 }
 
 interface CompiledGraph {
+  readonly bindings: Map<string, ReflectionBinding>;
   readonly spec: LocalGraphSpec;
   readonly graph: ExecutionGraph<GraphExecutionInput, Record<string, unknown>>;
   readonly nodes: readonly WorkflowNodeSpec[];
@@ -53,6 +57,7 @@ interface ExecutionState {
   readonly executedNodeIds: string[];
   readonly executedGraphIds: string[];
   readonly generationOutcomes: GenerationOutcome[];
+  readonly checkerAudits: CheckerAudit[];
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -88,6 +93,8 @@ export class WorkflowExecutor {
    */
   async run(plan: AgentPlanSpec, task: BenchmarkTask, signal?: AbortSignal): Promise<AgentRunResult> {
     const nodesById = validatePlan(plan);
+    validateCheckerDependencies(plan.graphs.flatMap(graph => graph.nodeIds.map(id => nodesById.get(id)!)));
+    for (const node of plan.nodes) if (node.type === "INFER.REASONING.REFLECT") validateCheckerCriteria(task.dataset, node.config.criteria);
     const compiled = compileGraphs(plan, nodesById, this.#model);
     const graphOptions = signal ? { signal } : {};
 
@@ -113,9 +120,10 @@ export class WorkflowExecutor {
             if (!Object.hasOwn(rawOutputs, node.id)) {
               throw new Error(`Graph ${current.spec.id} did not return Node output: ${node.id}`);
             }
-            const output = normalizeNodeOutput(node, rawOutputs[node.id]);
+            const output = normalizeNodeOutput(node, rawOutputs[node.id], current.bindings.get(node.id));
             state.outputs[node.id] = output;
             if ("generationOutcome" in output) state.generationOutcomes.push(output.generationOutcome as GenerationOutcome);
+            if ("checkerAudit" in output) state.checkerAudits.push(output.checkerAudit as CheckerAudit);
             state.executedNodeIds.push(node.id);
             addUsage(state, usageOf(output));
           }
@@ -137,6 +145,7 @@ export class WorkflowExecutor {
           outputTokens: state.outputTokens,
           totalTokens: state.totalTokens,
           generationOutcomes: Object.freeze([...state.generationOutcomes]),
+          checkerAudits: Object.freeze([...state.checkerAudits]),
         });
       },
     });
@@ -161,6 +170,7 @@ function compileGraphs(
   for (const graphSpec of plan.graphs) {
     const localIds = new Set(graphSpec.nodeIds);
     const nodes = graphSpec.nodeIds.map((id) => nodesById.get(id)!);
+    const bindings = new Map<string, ReflectionBinding>();
     let builder = graph<GraphExecutionInput>(`${plan.id}:${graphSpec.id}`) as unknown as DynamicGraphBuilder;
 
     for (const node of nodes) {
@@ -168,8 +178,8 @@ function compileGraphs(
       // values are read from Loop state by the binder when this Graph is invoked.
       const localDependencies = node.dependencies.filter((id) => localIds.has(id));
       builder = builder.node(node.id, node.type, localDependencies, (input, localOutputs) => {
-        const dependencies = bindDependencies(node, nodesById, input.priorOutputs, localOutputs);
-        return nodeInput(node, input.task, dependencies, model);
+        const dependencies = bindDependencies(node, nodesById, input.priorOutputs, localOutputs, bindings);
+        return nodeInput(node, input.task, dependencies, model, bindings);
       });
     }
 
@@ -177,6 +187,7 @@ function compileGraphs(
       spec: graphSpec,
       graph: builder as unknown as ExecutionGraph<GraphExecutionInput, Record<string, unknown>>,
       nodes: Object.freeze(nodes),
+      bindings,
     }));
   }
   return result;
@@ -187,6 +198,7 @@ function bindDependencies(
   nodesById: ReadonlyMap<string, WorkflowNodeSpec>,
   priorOutputs: Readonly<Record<string, NormalizedNodeOutput>>,
   localOutputs: Readonly<Record<string, unknown>>,
+  bindings: ReadonlyMap<string, ReflectionBinding>,
 ): Readonly<Record<string, NormalizedNodeOutput>> {
   // A Graph is a local workflow boundary. Every later Graph receives the Loop's
   // accumulated state, while only explicit local dependencies can observe outputs
@@ -198,7 +210,7 @@ function bindDependencies(
   };
   for (const id of node.dependencies) {
     if (Object.hasOwn(localOutputs, id)) {
-      dependencies[id] = normalizeNodeOutput(nodesById.get(id)!, localOutputs[id]);
+      dependencies[id] = normalizeNodeOutput(nodesById.get(id)!, localOutputs[id], bindings.get(id));
     } else {
       throw new Error(`Node ${node.id} local dependency has not executed: ${id}`);
     }
@@ -211,6 +223,7 @@ function nodeInput(
   task: BenchmarkTask,
   dependencies: Readonly<Record<string, NormalizedNodeOutput>>,
   model: ModelConfig,
+  bindings: Map<string, ReflectionBinding>,
 ): unknown {
   const context = dependencyContext(dependencies);
   const messages = dependencyMessages(dependencies);
@@ -287,12 +300,21 @@ function nodeInput(
     case "INFER.REASONING.REFLECT": {
       const target = messages.at(-1);
       if (!target) throw new Error(`Node ${node.id} requires a message-producing dependency`);
+      validateCheckerCriteria(task.dataset, node.config.criteria);
+      const targetNodeId = target.answerSourceNodeId ?? target.id;
+      const feedback = Object.values(dependencies).flatMap(output => "checkerAudit" in output && output.checkerAudit.mode !== "revise" &&
+        output.checkerAudit.targetNodeId === targetNodeId && output.checkerAudit.originalAnswer === messageText(target.message) ? [output.checkerAudit] : []);
+      const criteria = [checkerContract(task.dataset), ...node.config.criteria];
+      bindings.set(node.id, { target: target.message, targetNodeId, feedback, criteria });
       return {
         messages: [{ role: "user", content: taskMessage }],
         target: { result: target.message },
         mode: node.config.mode,
-        criteria: node.config.criteria.map((description, index) => ({ id: `criterion-${index + 1}`, description, weight: 1 })),
-        ...(context ? { context: inferContext(context) } : {}),
+        criteria: criteria.map((description, index) => ({ id: index ? `criterion-${index}` : "application-checker-policy", description, weight: 1 })),
+        context: [...(context ? inferContext(context) : []), ...(node.config.mode === "revise" && feedback.length ? [{
+          id: `checker-feedback:${node.id}`, content: { originalAnswerNodeId: targetNodeId, originalAnswer: target.message,
+            checks: feedback.map(({ nodeId, assessment, issues }) => ({ nodeId, assessment, issues })) },
+        }] : [])],
         model,
         generation: node.config.generation,
         metadata,
@@ -410,12 +432,17 @@ function conditionMatches(
   }
 }
 
-function normalizeNodeOutput(node: WorkflowNodeSpec, raw: unknown): NormalizedNodeOutput {
+function normalizeNodeOutput(node: WorkflowNodeSpec, raw: unknown, binding?: ReflectionBinding): NormalizedNodeOutput {
   if (node.type === "CONTEXT.LOAD") {
     if (!isContext(raw)) throw new Error(`Node ${node.id} returned an invalid Context`);
     return raw;
   }
-  return unwrap(raw as NodeResult<NormalizedNodeOutput>, node.id);
+  const output = unwrap(raw as NodeResult<NormalizedNodeOutput>, node.id);
+  // Unusable length output retains the budget boundary's empty answer and actual finish reason.
+  if (node.type === "INFER.REASONING.REFLECT" && binding && "assessment" in output && "issues" in output) {
+    return applyCheckerSemantics(node, output, binding);
+  }
+  return output;
 }
 
 function unwrap<T>(result: NodeResult<T>, nodeId: string): T {
@@ -433,11 +460,11 @@ function dependencyContext(outputs: Readonly<Record<string, NormalizedNodeOutput
 
 function dependencyMessages(
   outputs: Readonly<Record<string, NormalizedNodeOutput>>,
-): readonly { readonly id: string; readonly message: Message }[] {
-  const messages: Array<{ id: string; message: Message }> = [];
+): readonly { readonly id: string; readonly message: Message; readonly answerSourceNodeId?: string }[] {
+  const messages: Array<{ id: string; message: Message; answerSourceNodeId?: string }> = [];
   for (const [id, output] of Object.entries(outputs)) {
     const message = outputMessage(output);
-    if (message) messages.push({ id, message });
+    if (message) messages.push({ id, message, ...("answerSourceNodeId" in output ? { answerSourceNodeId: output.answerSourceNodeId } : {}) });
   }
   return messages;
 }
@@ -480,6 +507,7 @@ function createExecutionState(): ExecutionState {
     executedNodeIds: [],
     executedGraphIds: [],
     generationOutcomes: [],
+    checkerAudits: [],
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,

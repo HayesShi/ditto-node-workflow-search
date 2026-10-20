@@ -109,6 +109,7 @@ async function evaluateOne(
       failureKind: "judge", error: error instanceof Error ? error.message : String(error),
       attempts: Object.freeze(attempts), usageKnown: run.usageKnown !== false && prior?.usageKnown !== false && attempts.every(value => value.usageKnown),
       ...providerUsage,
+      ...(run.checkerAudits?.length ? { checkerAudits: run.checkerAudits } : {}),
       latencyMs: Date.now() - started,
     });
   }
@@ -121,6 +122,7 @@ async function evaluateOne(
     attempts: Object.freeze(attempts),
     ...evidence,
     ...(run.generationOutcomes?.length ? { generationOutcomes: run.generationOutcomes } : {}),
+    ...(run.checkerAudits?.length ? { checkerAudits: run.checkerAudits } : {}),
     latencyMs: Date.now() - started,
   });
 }

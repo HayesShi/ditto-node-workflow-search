@@ -140,6 +140,7 @@ async function search(
   const proposer = new NextNodeProposer(experiment.runtime, experiment.providerName, experiment.model);
   let checkpointScore = -Infinity;
   const optimizer = new NodeWorkflowSearch({
+    dataset: options.dataset,
     evaluate,
     proposer,
     rounds: options.rounds,
