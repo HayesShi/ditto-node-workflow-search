@@ -1,4 +1,8 @@
-/** Public optimizer feedback for partial, progressively enlarged evaluations. */
+/**
+ * 把 A/B 候选的评测结果整理成反馈，供优化模型设计下一版工作流。
+ * 输入：候选历史（得分、预测、节点记录）和题目；输出：每个候选的反馈对象。
+ * 主入口 buildGeneratedFeedback() 依次比较新旧得分、选择案例、附上节点输入输出。
+ */
 const FAILURE_KINDS = ['provider', 'execution', 'timeout', 'judge'];
 const OMIT = Symbol('omit');
 const own = (value, key) => value !== null && typeof value === 'object' && Object.hasOwn(value, key);
@@ -12,7 +16,7 @@ function taskPrompt(value, maximum) {
   if (value.length <= maximum) return { text: value, truncated: false, originalLength: value.length };
   const marker = '\n[...truncated...]\n';
   const available = Math.max(0, maximum - marker.length);
-  // Keep the question at the end of a truncated DROP passage.
+  // DROP 的问题在文章末尾，截断长文章时保留末尾问题。
   const tail = Math.min(available, Math.max(Math.min(800, available), Math.floor(available * .45)));
   const head = available - tail;
   return { text: value.slice(0, head) + marker + value.slice(-tail), truncated: true, originalLength: value.length };
@@ -29,7 +33,7 @@ function integerOption(options, name, fallback, minimum, maximum) {
 function publicRows(record, tasks) {
   const latest = new Map();
   for (const row of record.evaluation?.results ?? []) {
-    // Select public fields from CaseResult; scorer fields stay local.
+    // 提取预测、得分和用量；参考答案不进入反馈。
     if (!object(row) || typeof row.caseId !== 'string') continue;
     const id = row.caseId.replace(/#[1-9]\d*$/, '');
     if (!tasks.has(id)) continue;
@@ -55,6 +59,7 @@ function taskGroups(rows) {
   return groups;
 }
 
+// 按相同 caseId 比较新旧候选；同一题有多次结果时，先取平均差值再统计改善、退步、持平。
 function pairedFeedback(referenceId, current, reference) {
   const common = reference ? [...current.values()].filter(row => row.valid && reference.get(row.caseId)?.valid) : [];
   const taskDeltas = new Map();
@@ -78,6 +83,7 @@ function pairedFeedback(referenceId, current, reference) {
   }, taskDeltas: new Map([...taskDeltas].map(([id, values]) => [id, mean(values)])) };
 }
 
+// 优先选取退步最大、得分最低、改善最大和答对的题目，供模型对照分析。
 function chooseCases(groups, priorGroups, paired, maximum) {
   const all = [...groups].map(([id, rows]) => ({ id, rows, prior: priorGroups.get(id) ?? [],
     score: mean(rows.map(row => row.score)), pairedDelta: paired.taskDeltas.get(id) ?? null }));
@@ -90,7 +96,7 @@ function chooseCases(groups, priorGroups, paired, maximum) {
   add(ascending.find(value => value.score < 1), 'largest-loss');
   add([...all].filter(value => value.pairedDelta !== null && value.pairedDelta > 1e-12).sort((a, b) => b.pairedDelta - a.pairedDelta)[0], 'largest-improvement');
   add(ascending.find(value => value.score === 1 && !seen.has(value.id)), 'successful-control');
-  // Sample across score levels.
+  // 剩余名额补充部分答对、全错和全对的案例。
   for (const predicate of [value => value.score > 0 && value.score < 1, value => value.score === 0, value => value.score === 1])
     add(ascending.find(value => !seen.has(value.id) && predicate(value)), 'additional-quality-example');
   for (const value of ascending) add(value, 'additional-quality-example');
@@ -108,7 +114,7 @@ function outcomes(rows, settings) {
     }) };
 }
 
-/** Serialize public node traces for optimizer feedback. */
+/** 将节点数据转成可放入反馈的 JSON，过滤敏感字段并截断长内容。 */
 function runtimeValue(value, maximum) {
   let omittedFields = 0, truncated = false;
   const seen = new WeakSet();
@@ -148,6 +154,7 @@ function errorSummary(value) {
   return { kind, ...(status ? { httpStatus: Number(status[1]) } : {}) };
 }
 
+// 从已有执行记录中提取这道题的节点输入、输出和错误摘要；记录过多时按原顺序均匀抽样。
 function traceFor(record, taskId, settings, budget) {
   const runs = (record?.traces ?? []).filter(trace => trace?.taskId === taskId && Array.isArray(trace.events));
   const events = runs.flatMap((run, runIndex) => run.events.map(event => ({ event, runIndex })));
@@ -193,6 +200,12 @@ function costFeedback(evaluation, rows) {
     usageStatus: ['complete', 'known-lower-bound'].includes(evaluation?.tokenUsageStatus) ? evaluation.tokenUsageStatus : 'unknown' };
 }
 
+/**
+ * 为 history 中每个候选生成一份反馈：
+ * sample/quality：评测题量与得分；paired：相对参考候选的改善和退步；
+ * cases：代表题目、新旧答案及节点记录；cost/engineering：用量和执行错误。
+ * 搜索入口将这些反馈交给优化模型，由模型决定下一轮改哪些提示词或流程。
+ */
 export function buildGeneratedFeedback(history, tasks, options = {}) {
   const settings = {
     maxCases: integerOption(options, 'maxCases', 6, 0, 6),
@@ -235,7 +248,7 @@ export function buildGeneratedFeedback(history, tasks, options = {}) {
         issues: (record.engineeringFeedback ?? []).slice(0, 5).map(errorSummary) },
       truncation: { applied: false, maxCharacters: settings.maxFeedbackChars, traceCaseLimit: settings.maxTraceCases },
     };
-    // Trim task text first, retaining the question suffix.
+    // 先缩短案例中的文章，为节点记录留出空间，并保留末尾问题。
     const baseLimit = Math.max(4500, settings.maxFeedbackChars - 6000);
     while (JSON.stringify(result).length > baseLimit && result.cases.some(item => item.prompt.length > 900)) {
       for (const item of result.cases) if (item.prompt.length > 900) {
@@ -243,14 +256,14 @@ export function buildGeneratedFeedback(history, tasks, options = {}) {
         item.prompt = prompt.text; item.promptTruncated = prompt.truncated;
       }
     }
-    // Share the trace budget across this candidate’s selected cases.
+    // 当前候选的所有案例共用剩余字符额度，默认最多附上 3 道题的节点记录。
     const budget = { remaining: Math.max(0, settings.maxFeedbackChars - JSON.stringify(result).length - 1800) };
     for (let index = 0; index < Math.min(result.cases.length, settings.maxTraceCases); index++) {
       const item = result.cases[index];
       item.currentTrace = traceFor(record, item.taskId, settings, budget);
       item.referenceTrace = reference ? traceFor(reference, item.taskId, settings, budget) : null;
     }
-    // Drop traces, then cases, if the feedback still exceeds the limit.
+    // 超过长度上限时，从后往前删减节点记录，再删减案例。
     while (JSON.stringify(result).length > settings.maxFeedbackChars && result.cases.some(item => item.currentTrace || item.referenceTrace)) {
       const item = [...result.cases].reverse().find(value => value.currentTrace || value.referenceTrace);
       item.currentTrace = null; item.referenceTrace = null; item.traceOmittedForBudget = true; result.truncation.applied = true;
