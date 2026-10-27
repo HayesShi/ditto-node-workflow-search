@@ -27,8 +27,7 @@ async function readLatestCases(path) {
     fail('cannot read live-samples.jsonl');
   }
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
-  // A normal terminating newline is not a record. Interior blank/corrupt lines
-  // are rejected rather than silently removing paid attempts from recovery.
+  // Ignore trailing newlines; reject malformed interior records.
   while (lines.length && !lines.at(-1).trim()) lines.pop();
   const latest = new Map();
   for (let index = 0; index < lines.length; index++) {
@@ -42,20 +41,13 @@ async function readLatestCases(path) {
       fail(`invalid case record in live-samples.jsonl line ${index + 1}`);
     if (row.valid === true && (typeof row.prediction !== 'string' || !Number.isFinite(row.score)))
       fail(`invalid completed case in live-samples.jsonl line ${index + 1}`);
-    // Keep the latest record even when it failed after an earlier success.
-    // evaluateTasks decides reuse with valid===true && error===undefined; failed
-    // rows remain here so its retry accounting retains already paid usage.
+    // Keep the latest attempt, including failures, for retry accounting.
     latest.set(row.caseId, row);
   }
   return { found: true, priorCases: [...latest.values()], recordsRead: lines.length };
 }
 
-/**
- * Restore an actual saved candidate and its private local evaluation records.
- * priorCases and raw history are local evaluator state, NOT optimizer payloads.
- * Feed history through buildWorkflowFeedback before passing feedback to an LLM.
- * No private labels or arbitrary error content is logged by this loader.
- */
+/** Restore local evaluation state; filter it with buildWorkflowFeedback before sending to the model. */
 export async function loadGeneratedResume(runDir, candidateId, expected) {
   if (typeof runDir !== 'string' || !runDir.trim()) fail('run directory is required');
   if (typeof candidateId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(candidateId))

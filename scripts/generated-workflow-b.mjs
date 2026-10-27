@@ -69,7 +69,7 @@ function jsonValue(value, label, depth = 0) {
 }
 const UNKNOWN_STATIC = Symbol('dynamic binding');
 const STRING_STATIC = Symbol('dynamic string');
-/** Inspect shape only; never evaluate dynamic bindings during validation. */
+/** Check binding structure before execution. */
 function staticShape(value) {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(staticShape);
@@ -251,8 +251,7 @@ function inferInputShape(node, value, resolved = false) {
       }
     }
   }
-  // Fully literal data can use the exact installed native schema even before a
-  // Runtime exists. These placeholders validate shape only; they never dispatch.
+  // Validate literal inputs with native schemas before constructing the runtime.
   if (!resolved && !containsUnknown(known)) validateGeneratedInferInput(node.type, known, { model: { provider: 'shape-validation', model: 'shape-validation' }, generation: {} });
 }
 function toolCallShape(bindingValue, label, allowedTools, resolved = false) {
@@ -362,7 +361,7 @@ function condition(value, context, label) {
   }
 }
 
-/** Validate JSON only; do not compile or invoke any generated application code. */
+/** Validate a workflow definition. */
 export function validateEvidenceDefinition(definition, options = {}) {
   keys(definition, ['schemaVersion', 'id', 'nodes', 'graphs', 'loop', 'output'], ['schemaVersion', 'id', 'nodes', 'graphs', 'loop', 'output'], 'definition');
   if (definition.schemaVersion !== 1) fail('unsupported schemaVersion');
@@ -506,7 +505,7 @@ function normalized(value, unwrap) {
   return value;
 }
 
-/** Compile a generated definition; only host-owned functions ever execute. */
+/** Compile the definition into Graphs and Loop control. */
 export function compileEvidenceDefinition(definition, capabilities, options = {}) {
   const spec = validateEvidenceDefinition(definition, { allowedTools: capabilities.allowedTools });
   const { graph, loop, graphStep, model, generation, unwrap } = capabilities;

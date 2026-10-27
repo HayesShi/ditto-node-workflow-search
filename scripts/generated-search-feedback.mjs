@@ -12,8 +12,7 @@ function taskPrompt(value, maximum) {
   if (value.length <= maximum) return { text: value, truncated: false, originalLength: value.length };
   const marker = '\n[...truncated...]\n';
   const available = Math.max(0, maximum - marker.length);
-  // DROP puts the question after the passage. Keep a real suffix, rather than
-  // showing passage context while silently deleting what was being asked.
+  // Keep the question at the end of a truncated DROP passage.
   const tail = Math.min(available, Math.max(Math.min(800, available), Math.floor(available * .45)));
   const head = available - tail;
   return { text: value.slice(0, head) + marker + value.slice(-tail), truncated: true, originalLength: value.length };
@@ -30,7 +29,7 @@ function integerOption(options, name, fallback, minimum, maximum) {
 function publicRows(record, tasks) {
   const latest = new Map();
   for (const row of record.evaluation?.results ?? []) {
-    // Never spread or stringify a CaseResult: it carries private scorer fields.
+    // Select public fields from CaseResult; scorer fields stay local.
     if (!object(row) || typeof row.caseId !== 'string') continue;
     const id = row.caseId.replace(/#[1-9]\d*$/, '');
     if (!tasks.has(id)) continue;
@@ -91,7 +90,7 @@ function chooseCases(groups, priorGroups, paired, maximum) {
   add(ascending.find(value => value.score < 1), 'largest-loss');
   add([...all].filter(value => value.pairedDelta !== null && value.pairedDelta > 1e-12).sort((a, b) => b.pairedDelta - a.pairedDelta)[0], 'largest-improvement');
   add(ascending.find(value => value.score === 1 && !seen.has(value.id)), 'successful-control');
-  // Quality strata add diversity without assigning human solution categories.
+  // Sample across score levels.
   for (const predicate of [value => value.score > 0 && value.score < 1, value => value.score === 0, value => value.score === 1])
     add(ascending.find(value => !seen.has(value.id) && predicate(value)), 'additional-quality-example');
   for (const value of ascending) add(value, 'additional-quality-example');
@@ -109,7 +108,7 @@ function outcomes(rows, settings) {
     }) };
 }
 
-/** Trace payloads originate only from public runtime nodes, never scorer rows. */
+/** Serialize public node traces for optimizer feedback. */
 function runtimeValue(value, maximum) {
   let omittedFields = 0, truncated = false;
   const seen = new WeakSet();
@@ -236,8 +235,7 @@ export function buildGeneratedFeedback(history, tasks, options = {}) {
         issues: (record.engineeringFeedback ?? []).slice(0, 5).map(errorSummary) },
       truncation: { applied: false, maxCharacters: settings.maxFeedbackChars, traceCaseLimit: settings.maxTraceCases },
     };
-    // Fit task text before allocating trace context. Shortening preserves each
-    // question suffix and keeps the six selected examples when possible.
+    // Trim task text first, retaining the question suffix.
     const baseLimit = Math.max(4500, settings.maxFeedbackChars - 6000);
     while (JSON.stringify(result).length > baseLimit && result.cases.some(item => item.prompt.length > 900)) {
       for (const item of result.cases) if (item.prompt.length > 900) {
@@ -245,16 +243,14 @@ export function buildGeneratedFeedback(history, tasks, options = {}) {
         item.prompt = prompt.text; item.promptTruncated = prompt.truncated;
       }
     }
-    // Keep input/output payloads within a shared per-candidate budget. Loop
-    // invocations remain real events, with every omission explicitly marked.
+    // Share the trace budget across this candidate’s selected cases.
     const budget = { remaining: Math.max(0, settings.maxFeedbackChars - JSON.stringify(result).length - 1800) };
     for (let index = 0; index < Math.min(result.cases.length, settings.maxTraceCases); index++) {
       const item = result.cases[index];
       item.currentTrace = traceFor(record, item.taskId, settings, budget);
       item.referenceTrace = reference ? traceFor(reference, item.taskId, settings, budget) : null;
     }
-    // Unusually verbose user-selected limits are reduced explicitly rather than
-    // producing unbounded optimizer context or pretending a trace was complete.
+    // Drop traces, then cases, if the feedback still exceeds the limit.
     while (JSON.stringify(result).length > settings.maxFeedbackChars && result.cases.some(item => item.currentTrace || item.referenceTrace)) {
       const item = [...result.cases].reverse().find(value => value.currentTrace || value.referenceTrace);
       item.currentTrace = null; item.referenceTrace = null; item.traceOmittedForBudget = true; result.truncation.applied = true;

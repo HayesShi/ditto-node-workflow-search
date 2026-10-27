@@ -1,6 +1,4 @@
-// Reuse the installed native 0.1.1 schemas rather than maintaining a second
-// approximation of Infer's public inputs. These URLs also resolve when this
-// mechanism is copied below a run directory inside this project.
+// Resolve native 0.1.1 schemas from both scripts/ and saved run directories.
 const inferEntry = import.meta.resolve('@codesoul-co/ditto/worker/infer');
 const native = await Promise.all([
   import(new URL('./reasoning/sample/schema.js', inferEntry)),
@@ -91,8 +89,7 @@ export function validateGeneratedInferInput(type, input, capabilities, identity 
     if (error.message?.startsWith('Generated Infer validation:')) throw error;
     fail(`${label}: ${error.message}`);
   }
-  // Do not turn invalid metadata (null/array) into a seemingly valid object.
-  // Native validation above checks it before diagnostic identity is attached.
+  // Validate metadata before attaching diagnostic fields.
   prepared.metadata = {...input.metadata,...identity,nodeType:type};
   return JSON.parse(JSON.stringify(prepared));
 }
