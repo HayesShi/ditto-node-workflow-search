@@ -1,3 +1,5 @@
+> 默认搜索入口已切换到 Ditto 0.1.5 官方 Agent JSON。合并范围、迁移、可选策略与五数据集运行方式见 [官方 JSON 主线接入](docs/official-agent-integration.zh-CN.md)。
+
 # Ditto Node Workflow Search
 
 Search reusable single-agent workflows built with the public Ditto Node → Graph → Loop hierarchy. The default is **scheme B**: an optimizer produces declarative definitions, and a fixed execution Agent validates, binds and runs native Workers. Ditto package sources are not modified.

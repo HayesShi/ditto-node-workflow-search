@@ -1,3 +1,4 @@
+import {experimentRuntimeConfig} from '../ditto/runtime.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDitto } from "@codesoul-co/ditto/runtime";
@@ -22,7 +23,7 @@ const solver = (id: string, graphId: "solve" | "refine" = "solve", dependencies:
 });
 async function execute(plan: CapabilityPlan, currentTask = task) {
   const calls: Parameters<ModelProvider["invoke"]>[0][] = [];
-  const runtime = createDitto({ workers: observeCapabilityWorkers([
+  const runtime = createDitto({config:experimentRuntimeConfig(), workers: observeCapabilityWorkers([
     createContextWorker(), createMemoryWorker(createTaskMemory()), createInferWorker({ defaultProvider: "fixture", providers: { fixture: {
       async invoke(input) {
         calls.push(structuredClone(input));

@@ -41,7 +41,7 @@ test("JSONL transport streams real SSE with text, split tool calls, finish reaso
       sandbox: new Sandbox(process.cwd(), { network: [settings.baseUrl] }), fetch: transport.fetch });
     const events = [];
     for await (const event of provider.stream!(input, callOptions)) events.push(event);
-    assert.deepEqual(events.filter(event => event.type === "text_delta").map(event => event.delta), ["read ", "file"]);
+    assert.deepEqual(events.flatMap(event => event.type === "text_delta" ? [event.delta] : []), ["read ", "file"]);
     const result = events.find(event => event.type === "result");
     assert.ok(result?.type === "result");
     assert.equal(result.output.finishReason, "action_request");

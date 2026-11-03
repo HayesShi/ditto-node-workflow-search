@@ -24,12 +24,17 @@
     "test:frozen": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js test",
     "experiment:legacy:a": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/coding/drop-small.js --method a",
     "experiment:legacy:small": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/coding/drop-small.js --method b",
-    "audit:prompts": "npm run build && node --experimental-vm-modules scripts/audit_unified_prompts.mjs",
+    "audit:prompts": "npm run build && node --experimental-vm-modules scripts/audit_official_prompts.mjs",
     "validate:drop:contract": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env scripts/drop_answer_contract_smoke.mjs",
-    "audit:drop:contract": "npm run build && node --experimental-vm-modules scripts/audit_drop_answer_contract.mjs"
+    "audit:drop:contract": "npm run build && node --experimental-vm-modules scripts/audit_drop_answer_contract.mjs",
+    "audit:prompts:legacy": "npm run build && node --experimental-vm-modules scripts/audit_unified_prompts.mjs",
+    "search:json:legacy": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/legacy-cli.js search",
+    "search:bfcl": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset bfcl",
+    "search:automationbench": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset automationbench",
+    "migrate:agent": "npm run build && node scripts/migrate_agent_json.mjs"
   },
   "dependencies": {
-    "@codesoul-co/ditto": "0.1.1",
+    "@codesoul-co/ditto": "0.1.5",
     "@codesoul-co/ditto-retrieval": "0.1.0",
     "acorn": "8.15.0"
   },

@@ -4,6 +4,7 @@ import { dropAdapter } from "./drop.js";
 import { gsm8kAdapter } from "./gsm8k.js";
 import { mathAdapter } from "./math.js";
 import { automationAdapter } from "./automation.js";
+import { bfclAdapter } from "./bfcl.js";
 import type { BenchmarkAdapter, BenchmarkLoadOptions, LoadedBenchmark } from "./types.js";
 
 const adapters: Readonly<Record<DatasetName, BenchmarkAdapter>> = Object.freeze({
@@ -13,6 +14,7 @@ const adapters: Readonly<Record<DatasetName, BenchmarkAdapter>> = Object.freeze(
   gsm8k: gsm8kAdapter,
   math: mathAdapter,
   automationbench: automationAdapter,
+  bfcl: bfclAdapter,
 });
 
 export function getBenchmarkAdapter(dataset: DatasetName): BenchmarkAdapter {

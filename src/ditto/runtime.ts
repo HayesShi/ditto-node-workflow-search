@@ -1,7 +1,7 @@
 import { withReflectionFormatRepair, type ReflectionRepairEvent } from "./reflection-format.js";
 import { budgetOutputBoundary } from "./budget-output.js";
 import { appendFile } from "node:fs/promises";
-import { createDitto, type DittoRuntime } from "@codesoul-co/ditto/runtime";
+import { createDitto, loadRuntimeConfig, loadRuntimeConfigFile, type DittoRuntime } from "@codesoul-co/ditto/runtime";
 import { Sandbox } from "@codesoul-co/ditto/runtime/sandbox";
 import { createContextWorker } from "@codesoul-co/ditto/worker/context";
 import { createHttpProvider, createInferWorker, type ModelProvider, type SampleInput, type SampleOutput } from "@codesoul-co/ditto/worker/infer";
@@ -49,6 +49,13 @@ export interface ProviderInvocationEvent {
   readonly diagnostics: readonly ProviderCallDiagnostics[];
 }
 
+/** Keep application control keys out of Ditto 0.1.5's strict native env namespace. */
+export function experimentRuntimeConfig(env:NodeJS.ProcessEnv=process.env){
+  const appKeys=new Set(['DITTO_PROVIDER_PYTHON','DITTO_PROVIDER_LOG','DITTO_SEARCH_CONCURRENCY','DITTO_TEST_CONCURRENCY','DITTO_AUTOMATION_ROOT','DITTO_AUTOMATION_PYTHON','DITTO_AUTOMATION_DATA','DITTO_BFCL_ROOT','DITTO_BFCL_PYTHON','DITTO_OPTIMIZER_PROFILE']);
+  const nativeEnv=Object.fromEntries(Object.entries(env).filter(([key])=>!appKeys.has(key)));
+  try{return loadRuntimeConfigFile('ditto.yaml',nativeEnv);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;return loadRuntimeConfig(nativeEnv);}
+}
+
 /** npm Graph/Loop/Workers; injected transport uses AFlow's installed SDK. */
 export function createExperimentRuntime(settings: ProviderSettings, options: ExperimentRuntimeOptions = {}): ExperimentRuntime {
   const profile = options.profile ?? "math";
@@ -73,7 +80,7 @@ export function createExperimentRuntime(settings: ProviderSettings, options: Exp
     await options.reflectionEvent?.(event);
     if (process.env.DITTO_PROVIDER_LOG) await appendFile(process.env.DITTO_PROVIDER_LOG, JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n", "utf8");
   }));
-  const runtime = createDitto({ sandbox: sandbox.policy, workers: observeCapabilityWorkers([
+  const runtime = createDitto({ config:experimentRuntimeConfig(), sandbox: sandbox.policy, workers: observeCapabilityWorkers([
     createContextWorker(profile === "automationbench" ? { policy: {
       // Highest values accepted by the public npm policy validator. Referenced
       // Context items can carry larger inline payloads without a token ceiling.

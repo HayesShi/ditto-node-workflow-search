@@ -1,3 +1,4 @@
+import {experimentRuntimeConfig} from '../ditto/runtime.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDitto } from "@codesoul-co/ditto/runtime";
@@ -10,7 +11,7 @@ import { GENERATION } from "../protocol.js";
 
 test("empty-instruction MATH baseline sends exactly AFlow's raw problem in one call", async () => {
   let calls = 0;
-  const runtime = createDitto({ workers: [createContextWorker(), createInferWorker({ defaultProvider: "fixture", providers: {
+  const runtime = createDitto({config:experimentRuntimeConfig(), workers: [createContextWorker(), createInferWorker({ defaultProvider: "fixture", providers: {
     fixture: { async invoke(input) {
       calls++;
       assert.deepEqual(input.messages, [{ role: "user", content: task.prompt }]);
@@ -156,7 +157,7 @@ function createFixture(answer: (nodeId: string) => string): { executor: Workflow
       };
     },
   };
-  const runtime = createDitto({
+  const runtime = createDitto({config:experimentRuntimeConfig(),
     workers: [createContextWorker(), createInferWorker({ providers: { fake: provider }, defaultProvider: "fake" })],
   });
   return {

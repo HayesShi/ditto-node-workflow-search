@@ -6,12 +6,13 @@ import {pairedRegressionDecision,unifiedStages} from './policy.js';
 import type {UnifiedCandidate,UnifiedEvaluation} from './search.js';
 import {UnifiedRunStore,artifactHash,caseFile} from './store.js';
 
-export interface UnifiedEvaluationOptions{
- readonly benchmark:LoadedBenchmark;readonly definition:GraphDefinition;readonly id:string;
- readonly reference?:UnifiedCandidate;readonly store:UnifiedRunStore;readonly executionIdentity:unknown;
+export interface UnifiedEvaluationOptions<D=GraphDefinition>{
+ readonly benchmark:LoadedBenchmark;readonly definition:D;readonly id:string;
+ readonly candidateHash?:string;readonly toolArtifacts?:readonly unknown[];
+ readonly reference?:Pick<UnifiedCandidate,'id'|'evaluation'>;readonly store:UnifiedRunStore;readonly executionIdentity:unknown;
  readonly repeats:number;readonly concurrency:number;readonly retryAttempts?:number;readonly timeBudget?:TimeBudgetPolicy;
  readonly prune?:boolean;readonly resume?:boolean;
- readonly runTask:(definition:GraphDefinition,task:BenchmarkTask)=>Promise<AgentRunResult>;
+ readonly runTask:(definition:D,task:BenchmarkTask)=>Promise<AgentRunResult>;
  readonly onEvent?:(event:Readonly<Record<string,unknown>>)=>void|Promise<void>;
 }
 interface EvaluationCheckpoint{readonly identity:string;readonly cases:readonly CaseResult[];readonly complete?:UnifiedEvaluation;}
@@ -36,7 +37,7 @@ export class UnifiedEvaluationError extends Error{
 }
 
 /** One frozen artifact, nested public task prefixes, all declared repeats per prefix. */
-export async function evaluateUnifiedCandidate(options:UnifiedEvaluationOptions):Promise<UnifiedEvaluation>{
+export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:UnifiedEvaluationOptions<D>):Promise<UnifiedEvaluation>{
  const {benchmark,definition,id,store}=options;
  if(!Number.isSafeInteger(options.repeats)||options.repeats<1)throw Error('Invalid repeat count');
  if(!benchmark.tasks.length)throw Error('Cannot evaluate an empty benchmark');
@@ -50,7 +51,7 @@ export async function evaluateUnifiedCandidate(options:UnifiedEvaluationOptions)
  const failures=new Map<string,unknown>();
  const publicTraces:unknown[]=options.resume?[...await store.lines<unknown>(prefix+'/public-traces.jsonl')]:[];
  const persist=()=>store.write(prefix+'/checkpoint.json',{identity,cases:[...cases.values()]});
- await store.write('candidates/'+id+'.json',{definition,artifactHash:artifactHash(definition),evaluationIdentity:identity});
+ await store.write('candidates/'+id+'.json',{definition,artifactHash:options.candidateHash??artifactHash(definition),...(options.toolArtifacts?.length?{toolArtifacts:options.toolArtifacts}:{}),evaluationIdentity:identity});
  const runner=async(task:BenchmarkTask):Promise<AgentRunResult>=>{
   try{
    const result=await options.runTask(definition,task);

@@ -1,3 +1,4 @@
+import {experimentRuntimeConfig} from '../ditto/runtime.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, readFile } from "node:fs/promises";
@@ -143,7 +144,7 @@ import { parseArguments } from "../config.js";
 
 test("moved sample-1 actually consumes newly inserted prerequisite output", async () => {
   const calls: string[] = [];
-  const runtime = createDitto({ workers: [createContextWorker(), createInferWorker({ defaultProvider: "fixture", providers: {
+  const runtime = createDitto({config:experimentRuntimeConfig(), workers: [createContextWorker(), createInferWorker({ defaultProvider: "fixture", providers: {
     fixture: { async invoke(input) {
       const text = JSON.stringify(input.messages); calls.push(text);
       return { message: { role: "assistant", content: calls.length === 1 ? "INSERTED_EVIDENCE" : "7" }, finishReason: "stop" };

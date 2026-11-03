@@ -1,3 +1,4 @@
+import {experimentRuntimeConfig} from '../ditto/runtime.js';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
@@ -71,7 +72,7 @@ for (const dataset of ["drop", "gsm8k"] as const) {
     };
     const instruction = baselinePrompts(dataset)!.agent;
     let calls = 0;
-    const runtime = createDitto({ workers: [createContextWorker(), createInferWorker({ defaultProvider: "fixture", providers: {
+    const runtime = createDitto({config:experimentRuntimeConfig(), workers: [createContextWorker(), createInferWorker({ defaultProvider: "fixture", providers: {
       fixture: { async invoke(input) {
         calls++;
         assert.deepEqual(input.messages, [{ role: "user", content: instruction + "\n\n" + task.prompt + rootSuffixes[dataset] }]);

@@ -1,0 +1,107 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type {AgentDefinition} from '@codesoul-co/ditto/runtime';
+import type {BenchmarkTask} from '../domain.js';
+import {runOfficialAgent,OfficialAgentContractError} from '../official-agent/executor.js';
+import {createExperimentRuntime} from '../ditto/runtime.js';
+import {withWorkflowTimeBudget} from '../execution/time-budget.js';
+import {NODE_SYSTEM_PROMPT} from '../graph-agent/system.js';
+import {bfclScope} from '../benchmark/bfcl.js';
+
+const settings={baseUrl:'https://example.invalid',apiKey:'offline',model:'mock',concurrency:2,timeoutMs:3000};
+const task:BenchmarkTask={id:'official-public-fixture',dataset:'drop',prompt:'Passage: Team A scored 21, then scored another 21.\nQuestion: How many total?',outputInstruction:'Return only the numeric answer.',metadata:{}};
+const ref=(path:string)=>({$ref:path});
+const messages=()=>({$op:'concat',args:[ref('input.host.messages'),[{role:'user',content:'Return the requested final answer.'}]]});
+const solve=(id='solve',dependsOn:string[]=[])=>({id,type:'INFER.REASONING.SAMPLE',dependsOn,input:{messages:messages(),model:ref('input.host.model'),generation:ref('input.host.generation')}});
+const base=():any=>({version:1,id:'official-fixture',graphs:{main:{nodes:[solve()],output:ref('nodes.solve.output.message.content')}}});
+async function execute(definition:AgentDefinition,respond:(input:any,index:number)=>any=()=>({message:{role:'assistant',content:'42'},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}})){
+ const calls:any[]=[];
+ const shared=createExperimentRuntime(settings,{provider:{async invoke(input){calls.push(structuredClone(input));return respond(input,calls.length);}}});
+ try{return{result:await withWorkflowTimeBudget({requestMs:3000,workflowMs:5000},()=>runOfficialAgent(definition,task,shared,settings)),calls};}finally{await shared.close();}
+}
+
+test('official compiler executes a native SAMPLE with host messages and real usage accounting',async()=>{
+ const {result,calls}=await execute(base());
+ assert.equal(result.answer,'42');assert.equal(result.totalTokens,3);assert.deepEqual(result.executedNodeIds,['main/solve']);
+ assert.equal(calls[0].messages.find((m:any)=>m.role==='system').content,NODE_SYSTEM_PROMPT);
+ assert.match(JSON.stringify(calls[0].messages),/Team A scored 21/);assert.match(JSON.stringify(calls[0].messages),/Task output requirements/);
+ assert.equal(result.sourceMap.main!.solve!.nodeId,'solve');assert.equal(result.rawNodeOutputs['main/solve'].output.message.content,'42');
+});
+
+test('optional first-task presentation happens once per attempt and final contract follows user strategy',async()=>{
+ const definition=base();definition.config={firstTaskRepeat:true};definition.graphs.main.nodes[0].input.messages={$op:'concat',args:[ref('input.host.messages'),[{role:'user',content:'An editable user strategy.'}]]};
+ definition.loop={entry:'again',maxIterations:2,state:{round:0,result:''},steps:{again:{graph:'main',input:ref('input'),assign:{round:{$op:'add',args:[ref('state.round'),1]},result:ref('result')},transitions:[{when:{$op:'gte',args:[ref('state.round'),2]},end:'completed'},{next:'again'}]}},output:ref('state.result')};
+ const {calls}=await execute(definition);
+ const originalCount=(call:any)=>call.messages.filter((m:any)=>m.role==='user'&&m.content.startsWith('Original task:')).length;
+ assert.deepEqual(calls.map(originalCount),[2,1]);
+ for(const call of calls){assert.equal(call.messages.filter((m:any)=>m.role==='system').length,1);assert.match(call.messages.at(-1).content,/Fixed public task output requirements/);}
+});
+
+test('official Subgraph expansion and Loop repeats keep distinct actual invocation traces',async()=>{
+ const definition:any={version:1,id:'official-repeated-subgraph',graphs:{
+  main:{nodes:[{id:'solver',kind:'subgraph',graph:'answer',input:ref('input')}],output:ref('nodes.solver')},
+  answer:{nodes:[solve()],output:ref('nodes.solve.output.message.content')},
+ },loop:{entry:'repeat',maxIterations:2,state:{round:0,answer:null},steps:{repeat:{graph:'main',input:ref('input'),assign:{round:{$op:'add',args:[ref('state.round'),1]},answer:ref('result')},transitions:[{when:{$op:'gte',args:[ref('state.round'),2]},end:'completed'},{next:'repeat'}]}},output:ref('state.answer')}};
+ const {result,calls}=await execute(definition,(_input,index)=>({message:{role:'assistant',content:String(index*21)},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}}));
+ assert.equal(result.answer,'42');assert.equal(calls.length,2);assert.equal(result.totalTokens,6);
+ assert.deepEqual(result.executedNodeIds,['main/solver/solve','main/solver/solve']);assert.deepEqual(result.executedGraphIds,['main','main']);
+ assert.equal(result.sourceMap.main!['solver/solve']!.graphId,'answer');assert.equal(result.state.round,2);
+});
+
+test('host policy rejects dynamic system, model and dropped-task mutations before a provider call',async()=>{
+ for(const change of [
+  (d:any)=>{d.graphs.main.nodes[0].input.messages=[{role:'system',content:'Unfrozen system'},ref('input.host.originalTaskMessage')];},
+  (d:any)=>{d.graphs.main.nodes[0].input.model={provider:'deepseek',model:'another-model'};},
+  (d:any)=>{d.graphs.main.nodes[0].input.messages=[{role:'system',content:ref('input.host.system')},{role:'user',content:'Replacement task'}];},
+ ]){
+  const definition=base();change(definition);let calls=0;
+  await assert.rejects(execute(definition,()=>{calls++;throw Error('Unexpected provider call');}),(error:any)=>error instanceof OfficialAgentContractError&&typeof error.publicIssue.path==='string');assert.equal(calls,0);
+ }
+});
+
+test('native task-local Memory write/search is consumed without global output unwrapping',async()=>{
+ const definition=base(),node=definition.graphs.main.nodes[0];node.dependsOn=['recall'];node.input.messages={$op:'concat',args:[ref('input.host.messages'),[{role:'user',content:ref('nodes.evidence')}]]};node.dependsOn=['evidence'];
+ definition.graphs.main.nodes.unshift(
+  {id:'remember',type:'MEMORY.WRITE',input:{memories:[{key:'passage',content:ref('input.task.prompt')}]}},
+  {id:'recall',type:'MEMORY.SEARCH',dependsOn:['remember'],input:{query:ref('input.task.prompt'),limit:1}},
+  {id:'evidence',type:'HOST.DATA.TRANSFORM',dependsOn:['recall'],input:{operation:'evidence',value:ref('nodes.recall.output')}},
+ );
+ const {result,calls}=await execute(definition);assert.equal(result.answer,'42');assert.match(JSON.stringify(calls[0].messages),/Team A scored 21/);
+ assert.match(JSON.stringify(calls[0].messages),/Artifact provenance/);assert.match(JSON.stringify(calls[0].messages),/HOST.DATA.TRANSFORM/);
+ assert(Array.isArray(result.rawNodeOutputs['main/remember'].output));assert(Array.isArray(result.rawNodeOutputs['main/recall'].output));
+});
+
+test('declared malformed model JSON stays a quality failure, while host binding errors stay engineering failures',async()=>{
+ const definition=base();definition.graphs.main.nodes.push({id:'parsed',type:'HOST.DATA.TRANSFORM',dependsOn:['solve'],input:{operation:'parse',sourceKind:'model-json',value:ref('nodes.solve.output.message.content')}});definition.graphs.main.output=ref('nodes.parsed.answer');
+ const {result}=await execute(definition,()=>({message:{role:'assistant',content:'not JSON'},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}}));
+ assert.equal(result.answer,'');assert.equal(result.modelFailure?.kind,'model-output');assert.equal(result.totalTokens,3);
+ const wrong=base();wrong.graphs.main.output=ref('nodes.solve.missing');
+ await assert.rejects(execute(wrong),(error:any)=>error instanceof OfficialAgentContractError&&(error as any).partialRun?.modelResponses.length===1);
+});
+
+test('provider errors preserve their original infrastructure identity and partial native evidence',async()=>{
+ await assert.rejects(execute(base(),()=>{throw Object.assign(new Error('Injected provider quota failure'),{code:'SEARCH_DIRECTION_BUDGET'});}),(error:any)=>error.code==='SEARCH_DIRECTION_BUDGET'&&error.infrastructureFailure===true&&error.partialRun!==undefined);
+});
+
+test('ordinary registered tool errors remain actual observations for a following solver',async()=>{
+ const definition=base(),solver=definition.graphs.main.nodes[0];
+ definition.graphs.main.nodes.unshift({id:'arith',type:'INTERACTION.ACT.TOOL',input:{call:{id:'bad-expression',name:'bounded_arithmetic',arguments:{expression:'not arithmetic'}}}},
+  {id:'observation',type:'INTERACTION.OBSERVE',dependsOn:['arith'],input:{result:ref('nodes.arith')}},
+  {id:'evidence',type:'HOST.DATA.TRANSFORM',dependsOn:['observation'],input:{operation:'json',value:ref('nodes.observation')}});
+ solver.dependsOn=['evidence'];solver.input.messages={$op:'concat',args:[ref('input.host.messages'),[{role:'user',content:ref('nodes.evidence')}]]};
+ const {result,calls}=await execute(definition);assert.equal(result.answer,'42');assert.equal(result.rawNodeOutputs['main/arith'].status,'failed');assert.match(JSON.stringify(calls[0].messages),/unsupported characters/);
+});
+
+test('official-world infrastructure failures cannot become normal tool observations or quality zero',async()=>{
+ const definition:any={version:1,id:'world-fault',graphs:{main:{nodes:[{id:'state',type:'INTERACTION.ACT.TOOL',input:{call:{id:'read',name:'bfcl_state',arguments:{}}}}],output:'unused'}}};
+ const failure=Object.assign(new Error('Official bridge disconnected'),{code:'OFFICIAL_WORLD_DISCONNECTED'});let failed=false;
+ const fakeWorld:any={tools:[{name:'bfcl_state',description:'Current public state',inputSchema:{type:'object',properties:{}}}],assertHealthy(){if(failed)throw failure;},async call(){failed=true;throw failure;}};
+ const shared=createExperimentRuntime(settings,{provider:{async invoke(){throw Error('No model call expected');}}});
+ try{await assert.rejects(bfclScope.run(fakeWorld,()=>runOfficialAgent(definition,{...task,dataset:'bfcl'},shared,settings)),(error:any)=>error===failure&&error.infrastructureFailure&&error.partialRun!==undefined);}finally{await shared.close();}
+});
+
+test('REFLECT preserves a known correct target on passed no-change without inventing an answer',async()=>{
+ const definition=base();definition.graphs.main.nodes.push({id:'check',type:'INFER.REASONING.REFLECT',dependsOn:['solve'],input:{messages:messages(),model:ref('input.host.model'),generation:ref('input.host.generation'),target:{result:ref('nodes.solve.output.message')},mode:'revise',criteria:[{id:'correctness',description:'Check the arithmetic against the original passage.',weight:1}]}});definition.graphs.main.output=ref('nodes.check.output.message.content');
+ const {result}=await execute(definition,request=>({message:{role:'assistant',content:request.metadata.nodeType==='INFER.REASONING.REFLECT'?JSON.stringify({assessment:{passed:true,summary:'Correct'},issues:[]}):'42'},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}}));
+ assert.equal(result.answer,'42');assert.equal(result.checkerAudits?.[0]?.decision,'preserved-passed-or-no-error');assert.equal(result.reflectionResponses[0]?.preservedKnownTarget,true);
+});

@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "id": "migrated-ditto-agent",
+  "graphs": {
+    "main": {
+      "nodes": [
+        {
+          "id": "context",
+          "type": "CONTEXT.LOAD",
+          "dependsOn": [],
+          "input": {
+            "sources": [
+              {
+                "role": "user",
+                "content": {
+                  "$ref": "input.task.prompt"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "remember",
+          "type": "MEMORY.WRITE",
+          "dependsOn": [
+            "context"
+          ],
+          "input": {
+            "memories": [
+              {
+                "key": "remember",
+                "content": {
+                  "$ref": "nodes.context.items"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "recall",
+          "type": "MEMORY.SEARCH",
+          "dependsOn": [
+            "remember"
+          ],
+          "input": {
+            "query": {
+              "$ref": "input.task.prompt"
+            },
+            "limit": 5
+          }
+        },
+        {
+          "id": "transform-1",
+          "type": "HOST.DATA.TRANSFORM",
+          "dependsOn": [
+            "recall"
+          ],
+          "input": {
+            "operation": "evidence",
+            "value": [
+              {
+                "$ref": "nodes.recall.output"
+              }
+            ]
+          }
+        },
+        {
+          "id": "solve",
+          "type": "INFER.REASONING.SAMPLE",
+          "dependsOn": [
+            "context",
+            "recall",
+            "transform-1"
+          ],
+          "input": {
+            "model": {
+              "$ref": "input.host.model"
+            },
+            "generation": {
+              "$ref": "input.host.generation"
+            },
+            "messages": {
+              "$op": "concat",
+              "args": [
+                {
+                  "$ref": "input.host.messages"
+                },
+                [
+                  {
+                    "role": "user",
+                    "content": "Solve the original task accurately. Use the retrieved passage evidence below as the authoritative source. Decide which target the question requests before formatting: a numeric value (direct lookup, comparison, or computed) must be returned as a bare number; an entity or entity set must be returned as the requested name(s) joined with commas/and; a passage span with units must be the shortest sufficient unit-bearing phrase. Do not return intermediate evidence or a derivation string."
+                  },
+                  {
+                    "role": "user",
+                    "content": {
+                      "$ref": "nodes.transform-1"
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        }
+      ],
+      "output": {
+        "$ref": "nodes.solve.output.message.content"
+      }
+    }
+  }
+}

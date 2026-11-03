@@ -1,6 +1,6 @@
 import type { DeliberationMode, ReflectionMode } from "@codesoul-co/ditto/worker/infer";
 
-export const DATASETS = ["drop", "humaneval", "mbpp", "gsm8k", "math", "automationbench"] as const;
+export const DATASETS = ["drop", "humaneval", "mbpp", "gsm8k", "math", "automationbench", "bfcl"] as const;
 export type DatasetName = (typeof DATASETS)[number];
 
 export const STRATEGIES = ["cot", "long-cot", "tot", "got", "self-consistency"] as const;

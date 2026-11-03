@@ -1,0 +1,84 @@
+import {compileAgent,type AgentDefinition,type AgentNode,type AgentSubgraph} from '@codesoul-co/ditto/runtime';
+import {BASELINE_DEFINITION,validateDefinition as validateLegacy,DefinitionError,digest,NODE_TYPES,type ToolDefinition} from '../graph-agent/schema.js';
+import {dependencyEditBudget} from '../coding/policy.js';
+import {DATA_TRANSFORM_NODE} from './helpers.js';
+import type {ExplorationDirection} from '../unified/exploration.js';
+
+export type OfficialAgentDefinition=AgentDefinition;
+export interface MutationExplanation{primaryNodeId:string;auxiliary:{nodeId:string;reason:string}[]}
+export const OFFICIAL_AGENT_POLICY='ditto-official-agent-search-v1';
+export const OFFICIAL_CAPABILITIES=[...NODE_TYPES,DATA_TRANSFORM_NODE] as readonly string[];
+const groups:Record<ExplorationDirection,readonly string[]>={interaction:['INTERACTION.ACT.TOOL','INTERACTION.OBSERVE'],'context-retrieval':['CONTEXT.SELECT','CONTEXT.UPDATE','CONTEXT.COMPRESS','RETRIEVAL.SEARCH'],'native-reasoning':['INFER.REASONING.TRAJECTORY','INFER.REASONING.REFLECT','INFER.REASONING.DELIBERATE'],'memory-cache':['MEMORY.WRITE','MEMORY.GET','MEMORY.SEARCH','MEMORY.QUERY','MEMORY.UPDATE','MEMORY.DELETE','INFER.CACHE.LOOKUP','INFER.CACHE.WRITE','INFER.CACHE.INVALIDATE']};
+const check=(ok:unknown,message:string,path:string,hint?:string):void=>{if(!ok)throw new DefinitionError(message,path,hint);};
+export const officialNodes=(d:AgentDefinition)=>Object.entries(d.graphs).flatMap(([graph,g])=>g.nodes.filter((n):n is AgentNode=>n.kind!=='subgraph').map(node=>({graph,id:`${graph}/${node.id}`,node})));
+export function validateToolArtifacts(tools:readonly ToolDefinition[]=[]):ToolDefinition[]{
+ check(Array.isArray(tools),'toolArtifacts must be an array','/toolArtifacts');
+ try{return validateLegacy({...structuredClone(BASELINE_DEFINITION),tools:[...tools]}).tools??[];}catch(error){if(error instanceof DefinitionError)throw new DefinitionError(error.detail,error.path.replace(/^tools/,'toolArtifacts'),error.repairHint);throw error;}
+}
+export function validateOfficialDefinition(source:unknown,tools:readonly ToolDefinition[]=[]):AgentDefinition{
+ let compiled:ReturnType<typeof compileAgent>;
+ try{compiled=compileAgent(source);}catch(error){const d=(error as any).diagnostic;if(d)throw new DefinitionError(d.message,d.path,`Correct official Agent JSON (${d.code}); graph=${d.graphId??'-'}, node=${d.nodeId??'-'}.`);throw error;}
+ const d=compiled.definition,nodes=officialNodes(d);validateToolArtifacts(tools);
+ const refs=(v:any):string[]=>!v||typeof v!=='object'?[]:Object.hasOwn(v,'$literal')?[]:[...(typeof v.$ref==='string'?[v.$ref]:[]),...Object.values(v).flatMap(refs)];
+ check(!refs(d).some(r=>r==='input.task.id'||r.startsWith('input.task.id.')),'Task IDs are audit metadata, not searchable solution inputs','/graphs');
+ const firstLoad=nodes.find(n=>n.node.type==='CONTEXT.LOAD')?.id;
+ for(const [graph,g]of Object.entries(d.graphs)){
+  const consumed=new Set([...refs(g.output),...g.nodes.flatMap(n=>refs(n.input))].filter(r=>r.startsWith('nodes.')).map(r=>r.split('.')[1]));
+  for(const node of g.nodes){const type='type'in node?node.type:'';
+   check(g.output===undefined||consumed.has(node.id)||`${graph}/${node.id}`===firstLoad||['MEMORY.WRITE','MEMORY.UPDATE','MEMORY.DELETE','INFER.CACHE.WRITE','INFER.CACHE.INVALIDATE'].includes(type),'Declared node output must feed real data/control, not only scheduling',`/graphs/${graph}/nodes/${node.id}`);
+  }
+ }
+ check(nodes.length<=24,'At most 24 logical leaf nodes are allowed','/graphs');
+ check(nodes.filter(n=>n.node.type==='INFER.REASONING.SAMPLE').length<=1,'At most one SAMPLE declaration is allowed; use other native Workers','/graphs');
+ for(const {graph,node}of nodes){
+  check(OFFICIAL_CAPABILITIES.includes(node.type),'Node type is not registered in this experiment',`/graphs/${graph}/nodes/${node.id}/type`);
+  if(node.type.startsWith('INFER.REASONING.')){
+   const input=node.input as any;
+   check(input&&typeof input==='object'&&!Array.isArray(input),'Infer input must be a declared native input object',`/graphs/${graph}/nodes/${node.id}/input`);
+   for(const field of ['model','generation'])check(input[field]===undefined||digest(input[field])===digest({$ref:`input.host.${field}`}),`${field} must use the immutable host reference`,`/graphs/${graph}/nodes/${node.id}/input/${field}`);
+  }
+  const input=node.input as any;
+  if(node.type===DATA_TRANSFORM_NODE&&(input?.sourceKind==='model-json'||input?.operation==='decision')){
+   const ref=input?.value?.$ref,match=typeof ref==='string'?/^nodes\.([^.]+)\.output\.(message|result)\.content$/.exec(ref):null;
+   const producer=match?d.graphs[graph]?.nodes.find(n=>n.id===match[1]):undefined;
+   check(producer&&'type'in producer&&producer.type.startsWith('INFER.REASONING.')&&node.dependsOn?.includes(producer.id),'Model-format classification requires direct native Infer content and an explicit dependency',`/graphs/${graph}/nodes/${node.id}/input/value`);
+  }
+ }
+ for(const [graph,plan]of Object.entries(compiled.graphs)){
+  check(plan.tasks.length<=24,'Expanded Graph exceeds 24 nodes',`/graphs/${graph}`);
+  check(plan.tasks.filter(n=>n.node==='INFER.REASONING.SAMPLE').length<=1,'Subgraph reuse expands SAMPLE more than once in one Graph',`/graphs/${graph}`);
+ }
+ const deployment=d.deployment;
+ check(!deployment?.workers?.some(w=>w.services!==undefined),'Search cannot select service/permission profiles','/deployment/workers');
+ const allowedWorkers=new Set(['context','infer','memory','interaction','retrieval','host-data']);
+ check(!deployment?.workers?.some(w=>!allowedWorkers.has(w.use)),'Unknown host Worker registration','/deployment/workers');
+ return d;
+}
+export function officialArtifactHash(d:AgentDefinition,tools:readonly ToolDefinition[]=[]):string{return digest({definition:d,toolArtifacts:tools});}
+export function expandedOfficialNodes(d:AgentDefinition){const c=compileAgent(d);return Object.entries(c.graphs).flatMap(([graph,g])=>g.tasks.map(n=>({id:`${graph}/${n.id}`,type:String(n.node),dependencies:n.dependencies.map(dep=>`${graph}/${dep}`)})));}
+export function validateOfficialChange(parent:AgentDefinition,child:AgentDefinition,mutation?:MutationExplanation,parentTools:readonly ToolDefinition[]=[],childTools:readonly ToolDefinition[]=[]):void{
+ validateOfficialDefinition(child,childTools);
+ const unique=(id:string)=>[parent,child].every(d=>officialNodes(d).filter(n=>n.node.id===id).length<=1);
+ const stable=(d:AgentDefinition)=>officialNodes(d).map(n=>({...n,id:unique(n.node.id)?n.node.id:n.id}));
+ const before=stable(parent),after=stable(child),old=new Map(before.map(n=>[n.id,n]));
+ const added=after.filter(n=>!old.has(n.id)),removed=before.filter(n=>!after.some(v=>v.id===n.id));
+ check(removed.length<=1,'Remove at most one unrelated existing leaf node','/mutation');
+ if(added.length>1){
+  const ids=new Set(added.map(n=>n.id));const resolve=(id:string)=>ids.has(id)?id:added.find(n=>n.node.id===id)?.id;
+  const primary=mutation&&resolve(mutation.primaryNodeId);check(primary,'Multiple additions need mutation.primaryNodeId','/mutation/primaryNodeId');
+  const auxiliary=mutation?.auxiliary??[],extra=new Set(auxiliary.map(n=>resolve(n.nodeId)));
+  check(extra.size===added.length-1&&!extra.has(undefined)&&!extra.has(primary)&&added.every(n=>n.id===primary||extra.has(n.id))&&auxiliary.every(n=>n.reason?.trim()),'Every added companion needs its own reason, excluding the primary','/mutation/auxiliary');
+  const links=new Map(after.map(n=>[n.id,new Set<string>()]));
+  for(const n of after)for(const dep of n.node.dependsOn??[]){const target=after.find(x=>x.graph===n.graph&&x.node.id===dep);if(target)links.get(n.id)!.add(target.id);}
+  const visit=(start:string,reverse:boolean)=>{const found=new Set<string>();const walk=(id:string)=>{if(found.has(id))return;found.add(id);for(const [key,deps]of links)if(reverse?deps.has(id):key===id)for(const next of reverse?[key]:deps)walk(next);};walk(start);return found;};
+  const ancestors=visit(primary!,false),descendants=visit(primary!,true);check(added.every(n=>ancestors.has(n.id)||descendants.has(n.id)),'Added companions must precede or follow the primary','/mutation/auxiliary');
+ }
+ check(after.filter(n=>old.has(n.id)&&digest(n.node.input)!==digest(old.get(n.id)!.node.input)).length<=5,'At most five existing node inputs may change','/graphs');
+ const edgeSet=(d:AgentDefinition)=>new Set(expandedOfficialNodes(d).flatMap(n=>n.dependencies.map(dep=>`${dep}->${n.id}`))),a=edgeSet(parent),b=edgeSet(child);
+ check([...a].filter(e=>!b.has(e)).length+[...b].filter(e=>!a.has(e)).length<=dependencyEditBudget(Math.max(expandedOfficialNodes(parent).length,expandedOfficialNodes(child).length,1)),'Expanded dependency edit budget exceeded','/graphs');
+ const names=new Set([...parentTools,...childTools].map(t=>t.name));check([...names].filter(name=>digest(parentTools.find(t=>t.name===name)??null)!==digest(childTools.find(t=>t.name===name)??null)).length<=1,'At most one tool artifact may change','/toolArtifacts');
+ check(officialArtifactHash(parent,parentTools)!==officialArtifactHash(child,childTools),'Duplicate unchanged candidate','/definition');
+}
+export function validateOfficialExploration(parent:AgentDefinition,child:AgentDefinition,direction:ExplorationDirection){const prior=new Map(officialNodes(parent).map(n=>[n.id,n]));const changed=officialNodes(child).filter(n=>groups[direction].includes(n.node.type)&&digest(prior.get(n.id)?.node??null)!==digest(n.node));check(changed.length,`Protected direction requires changed ${groups[direction].join(', ')}`,'/exploration/direction');return changed.map(n=>n.id);}
+export function executedOfficialDirectionNodes(d:AgentDefinition,direction:ExplorationDirection,traces:readonly unknown[]):string[]{const eligible=new Set(expandedOfficialNodes(d).filter(n=>groups[direction].includes(n.type)).map(n=>n.id));return [...new Set(traces.flatMap((t:any)=>[...Object.keys(t.rawNodeOutputs??{}),...(t.executedNodeIds??[])]).filter(id=>eligible.has(id)))];}
+export const OFFICIAL_BASELINE:AgentDefinition={version:1,id:'ditto-agent',config:{strategy:''},graphs:{main:{nodes:[{id:'context',type:'CONTEXT.LOAD',input:{sources:[{role:'user',content:{$ref:'input.task.prompt'}}]}},{id:'solve',type:'INFER.REASONING.SAMPLE',dependsOn:['context'],input:{model:{$ref:'input.host.model'},generation:{$ref:'input.host.generation'},messages:{$op:'concat',args:[{$ref:'input.host.messages'},[{role:'user',content:{$ref:'config.strategy'}}]]}}}],output:{$ref:'nodes.solve.output.message.content'}}}};

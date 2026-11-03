@@ -1,0 +1,42 @@
+{
+  "version": "official-initialization-source-assets-v1",
+  "scope": "Optional user-side strategy assets; historical scoring metadata is not model guidance.",
+  "assets": [
+    {
+      "path": "prompts/initialization/pr10/drop.json",
+      "sourcePath": "prompts/initialization/drop.json",
+      "sourceCommit": "d9e51796b57407f1c083a44252ee0b44c832f67b",
+      "sha256": "22b14529bb7845f8f68c90d6f4056398764649eb8dfb74433cb5afdc4ec077ac"
+    },
+    {
+      "path": "prompts/initialization/pr10/humaneval.json",
+      "sourcePath": "prompts/initialization/humaneval.json",
+      "sourceCommit": "d9e51796b57407f1c083a44252ee0b44c832f67b",
+      "sha256": "203a19ad8393c81fa17bdf77a780c60478a04da9f2bcfba480cb34687e0dc118"
+    },
+    {
+      "path": "prompts/initialization/pr10/mbpp.json",
+      "sourcePath": "prompts/initialization/mbpp.json",
+      "sourceCommit": "d9e51796b57407f1c083a44252ee0b44c832f67b",
+      "sha256": "b7a6aa137132802ede9985a10eda4b812bbb9ed7705ba893926809f907d3b77f"
+    },
+    {
+      "path": "prompts/initialization/pr10/automationbench.json",
+      "sourcePath": "prompts/initialization/automationbench.json",
+      "sourceCommit": "d9e51796b57407f1c083a44252ee0b44c832f67b",
+      "sha256": "d7ffe0b8bdb277d8adb87fd198fea3ee45b804ac5729a129509571fd1928d3ce"
+    },
+    {
+      "path": "prompts/initialization/pr10/strategy-template.json",
+      "sourcePath": "prompts/initialization/strategy-template.json",
+      "sourceCommit": "d9e51796b57407f1c083a44252ee0b44c832f67b",
+      "sha256": "6bff91ec147d381156ebb3b27f95eafb301e4359a2cfcd322c56b504a05d1709"
+    },
+    {
+      "path": "prompts/initialization/pr7/dataset-initial-prompts.zh-CN.json",
+      "sourcePath": "prompts/dataset-initial-prompts.zh-CN.json",
+      "sourceCommit": "b641010f240ced610a45625653375816829c87e4",
+      "sha256": "d6b1bd82fbc1cd4ae5f48986c31b46204891f2ee76cf0b5c015330a58f3fcec3"
+    }
+  ]
+}

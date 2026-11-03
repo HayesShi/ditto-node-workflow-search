@@ -1,3 +1,4 @@
+import {experimentRuntimeConfig} from '../ditto/runtime.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GENERATION } from "../protocol.js";
@@ -7,7 +8,7 @@ import { createInferWorker } from "@codesoul-co/ditto/worker/infer";
 import { createInitialSampleNode, createRootNode } from "../workflow/spec.js";
 
 test("proposal input distinguishes legal local dependencies from automatic prior Graph inputs", async () => {
-  const runtime = createDitto({ workers: [createInferWorker({ defaultProvider: "fixture", providers: {
+  const runtime = createDitto({config:experimentRuntimeConfig(), workers: [createInferWorker({ defaultProvider: "fixture", providers: {
     fixture: { async invoke(input) {
       const request = JSON.parse(String(input.messages.at(-1)?.content));
       assert.deepEqual(request.availableDependenciesByGraph, { solve: ["sample-1"], refine: [] });

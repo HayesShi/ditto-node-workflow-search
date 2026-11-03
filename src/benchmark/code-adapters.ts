@@ -102,12 +102,7 @@ function loadedCode(
   const scorer: PrivateScorer = {
     async score(taskId, prediction): Promise<ScoreEvidence> {
       const reference = referenceFor(references, taskId, dataset);
-      // MBPP places its Python signature after a natural-language description.
-      const promptLines = reference.publicPrompt.split(/\r?\n/);
-      const firstCodeLine = dataset === "mbpp"
-        ? promptLines.findIndex(line => /^(?:from\s+\S+\s+import\s+|import\s+|(?:async\s+)?def\s+)/.test(line)) : 0;
-      const codePrompt = firstCodeLine < 0 ? "" : promptLines.slice(firstCodeLine).join("\n");
-      const candidate = extractPythonCandidate(prediction, codePrompt, reference.entryPoint);
+      const candidate = extractPythonCandidate(prediction, reference.publicPrompt, reference.entryPoint, dataset);
       const judged = await judge.judge({
         dataset,
         taskId,

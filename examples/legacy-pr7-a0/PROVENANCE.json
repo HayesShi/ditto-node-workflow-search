@@ -1,0 +1,42 @@
+{
+  "version": "pr7-a0-source-preservation-v1",
+  "sourceRepository": "https://github.com/HayesShi/ditto-node-workflow-search",
+  "sourcePullRequest": "https://github.com/lifanghen-ux/ditto-node-workflow-search/pull/7",
+  "sourceCommit": "b641010f240ced610a45625653375816829c87e4",
+  "requiredHistoricalDittoVersion": "0.1.1",
+  "status": "source-preservation-only",
+  "historicalScoresIndependentlyVerified": false,
+  "heldOutTestPerformed": false,
+  "files": [
+    {
+      "file": "drop.mjs",
+      "sourcePath": "examples/evaluated-workflows/drop.mjs",
+      "sha256": "ec2bb298ced7d6038294f7f3b86cc8e3a0050b81c76904dd723cb7bb9fe904fe"
+    },
+    {
+      "file": "humaneval.mjs",
+      "sourcePath": "examples/evaluated-workflows/humaneval.mjs",
+      "sha256": "ac2cdd93c93c01b6ef069150ef304ae9c74f7aa0b4a32ba1cc033b98823b8f34"
+    },
+    {
+      "file": "mbpp.mjs",
+      "sourcePath": "examples/evaluated-workflows/mbpp.mjs",
+      "sha256": "bcff1e0f65a2be6b9ee71c0cfc554d1f55a97f652bc59ede52d2826886dea2e1"
+    },
+    {
+      "file": "automationbench.mjs",
+      "sourcePath": "examples/evaluated-workflows/automationbench.mjs",
+      "sha256": "29f76eecc7de244f6523252d8e7c5e969ac4f261aef147b21e75c8c6d548edc6"
+    },
+    {
+      "file": "bfcl.mjs",
+      "sourcePath": "examples/evaluated-workflows/bfcl.mjs",
+      "sha256": "f78a27b293ef7347d86770bfee2ec6c13ef200c46340370c7b6300ec975f6112"
+    },
+    {
+      "file": "results.json",
+      "sourcePath": "examples/evaluated-workflows/results.json",
+      "sha256": "a9495a65322a01db309fa65f8c5cbaa2938e9156c04f93bf6f163453bfc19035"
+    }
+  ]
+}

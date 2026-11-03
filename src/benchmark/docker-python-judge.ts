@@ -7,6 +7,19 @@ import type { CodeJudge, CodeJudgeRequest, CodeJudgeResult } from "./types.js";
 const execFileAsync = promisify(execFile);
 class CandidateOutputLimit extends Error {}
 
+/** WSL is an explicit host deployment choice; candidates cannot select it. */
+export function dockerCommand(args: readonly string[]): { file: string; args: string[] } {
+  const distro = process.env.CODE_JUDGE_WSL_DISTRO;
+  return distro
+    ? { file: "wsl.exe", args: ["--distribution", distro, "--user", "root", "--exec", "docker", ...args] }
+    : { file: "docker", args: [...args] };
+}
+
+function execDocker(args: string[], options: Parameters<typeof execFileAsync>[2]) {
+  const command = dockerCommand(args);
+  return execFileAsync(command.file, command.args, options);
+}
+
 export interface DockerPythonJudgeOptions {
   /** Must be reviewed and pre-pulled; the judge never pulls during evaluation. */
   readonly image?: string;
@@ -47,12 +60,12 @@ export class DockerPythonJudge implements CodeJudge {
   /** Fail before an expensive search if Docker or the explicitly selected image is unavailable. */
   async preflight(): Promise<void> {
     try {
-      await execFileAsync("docker", ["version", "--format", "{{.Server.Version}}"], {
+      await execDocker(["version", "--format", "{{.Server.Version}}"], {
         env: dockerClientEnvironment(),
-        timeout: 5_000,
+        timeout: process.env.CODE_JUDGE_WSL_DISTRO ? 30_000 : 5_000,
         windowsHide: true,
       });
-      await execFileAsync("docker", ["image", "inspect", this.image], {
+      await execDocker(["image", "inspect", this.image], {
         env: dockerClientEnvironment(),
         timeout: 5_000,
         windowsHide: true,
@@ -140,7 +153,8 @@ function runDocker(
   signal?: AbortSignal,
 ): Promise<DockerExecution> {
   return new Promise((resolve, reject) => {
-    const child = spawn("docker", args, { env: dockerClientEnvironment(), stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    const command = dockerCommand(args);
+    const child = spawn(command.file, command.args, { env: dockerClientEnvironment(), stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     let stdout = "";
     let stderr = "";
     let failure: Error | undefined;
@@ -181,7 +195,7 @@ function runDocker(
 }
 
 async function removeContainer(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name], {
+  await execDocker(["rm", "-f", name], {
     env: dockerClientEnvironment(),
     timeout: 5_000,
     windowsHide: true,
@@ -229,7 +243,7 @@ function compactDiagnostics(stdout: string, stderr: string, passed: boolean): st
   return combined.slice(-4_000);
 }
 
-export function extractPythonCandidate(modelOutput: string, publicPrompt: string, entryPoint: string): string {
+export function extractPythonCandidate(modelOutput: string, publicPrompt: string, entryPoint: string, dataset: "humaneval" | "mbpp" = "humaneval"): string {
   const fences = [...modelOutput.matchAll(/```(?:python|py)?[^\S\r\n]*\r?\n([\s\S]*?)```/gi)].map((match) => match[1]!.trimEnd());
   const classifications = fences.length > 1 ? supportingPythonBlocks(fences) : [];
   const firstEntryIndex = fences.findIndex((candidate) => containsEntryPoint(candidate, entryPoint));
@@ -242,6 +256,17 @@ export function extractPythonCandidate(modelOutput: string, publicPrompt: string
   const extracted = fencedWithEntry ? fences.filter((block, index) => index === entryIndex ||
     (!containsEntryPoint(block, entryPoint) && classifications[index]?.support)).join("\n\n")
     : fences.sort((left, right) => right.length - left.length)[0] ?? stripPlainLanguagePrefix(modelOutput);
+  // MBPP prose and its displayed signature are not an executable scaffold.
+  if (dataset === "mbpp") {
+    if (containsEntryPoint(extracted, entryPoint)) return extracted;
+    // A body-only completion may use the public signature, never its prose scaffold.
+    const escaped = entryPoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const signature = new RegExp(`^\\s*(?:async\\s+)?def\\s+${escaped}\\s*\\([^\\r\\n]*\\)[^\\r\\n]*:\\s*$`, "m").exec(publicPrompt);
+    if (!signature) return extracted;
+    const lines = extracted.split(/\r?\n/), indents = lines.filter(line => line.trim()).map(line => line.match(/^\s*/)![0].length);
+    const common = indents.length ? Math.min(...indents) : 0;
+    return `${signature[0].trim()}\n${lines.map(line => line.trim() ? '    ' + line.slice(common) : '').join('\n')}`;
+  }
   if (containsEntryPoint(extracted, entryPoint)) {
     // Public imports and helpers precede HumanEval's incomplete entry point.
     const escaped = entryPoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
