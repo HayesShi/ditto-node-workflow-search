@@ -24,6 +24,7 @@ BORDER = "#d2dfee"
 CAUTION = "#a85d12"
 SMALL_BATCH_PROTOCOL = "generated-drop-small-batch-v1"
 EXPANDED_SEARCH_PROTOCOL = "generated-drop-expanded-v2"
+STAGED_PROTOCOLS = {SMALL_BATCH_PROTOCOL, EXPANDED_SEARCH_PROTOCOL, "generated-humaneval-small-batch-v1", "generated-mbpp-small-batch-v1", "generated-automationbench-small-batch-v1", "generated-math-full-search-v1", "generated-bfcl-full-search-v1", "generated-automationbench-full-search-v1"}
 FROZEN_EXPANSION_PROTOCOL = "frozen-candidate-full200-expansion-v1"
 
 
@@ -33,7 +34,7 @@ def read_json(path):
 
 def safe_sample_metrics(path):
     """Keep only telemetry fields; never retain prediction or judge fields."""
-    keep = {"latencyMs", "providerAttempts", "usageKnown"}
+    keep = {"caseId", "latencyMs", "providerAttempts", "usageKnown"}
     rows = []
     if path.exists():
         with path.open(encoding="utf-8-sig") as stream:
@@ -45,10 +46,36 @@ def safe_sample_metrics(path):
     return rows
 
 
+def execution_counts(path, audit=None):
+    if audit and isinstance(audit.get("executionCounts"), dict):
+        return audit["executionCounts"]
+    paths = [path.with_name("inherited-public-traces.jsonl"), path]
+    if not any(source.exists() for source in paths):
+        return None
+    graphs, nodes = {}, {}
+    keep = {"events", "kind", "graphId", "nodeId"}
+    for source in paths:
+        if not source.exists():
+            continue
+        with source.open(encoding="utf-8-sig") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                trace = json.loads(line, object_pairs_hook=lambda pairs: {k: v for k, v in pairs if k in keep})
+                for event in trace.get("events", []):
+                    if event.get("kind") == "graph-start":
+                        graphs[event["graphId"]] = graphs.get(event["graphId"], 0) + 1
+                    elif event.get("kind") == "node":
+                        nodes[event["nodeId"]] = nodes.get(event["nodeId"], 0) + 1
+    return {"graphs": graphs, "nodes": nodes}
+
+
 def candidates(run_dirs):
     found = []
     for run in run_dirs:
         manifest = read_json(run / "manifest.json")
+        run_audit_path = run / "execution-audit.json"
+        run_audit = read_json(run_audit_path) if run_audit_path.exists() else {}
         def chronological_key(path):
             candidate_id = path.parent.name
             if candidate_id.startswith("seed-"):
@@ -67,6 +94,8 @@ def candidates(run_dirs):
             else:
                 checkpoint = read_json(checkpoint_path)
             summary = read_json(summary_path)
+            audit_path = summary_path.parent / "execution-audit.json"
+            audit = read_json(audit_path) if audit_path.exists() else None
             # summary.json is published concurrently with samples.jsonl. Wait
             # until both artifacts exist and include the whole collection.
             samples_path = summary_path.parent / "samples.jsonl"
@@ -74,6 +103,15 @@ def candidates(run_dirs):
             expected_runs = summary.get("examples", 0) * summary.get("repeats", 0)
             if expected_runs <= 0 or len(samples) != expected_runs:
                 continue
+            stopped = run_audit.get("status", manifest.get("status")) in {"failed", "cost-budget-complete", "account-blocked", "interrupted", "round-budget-complete"}
+            if stopped and audit and audit.get("recordedCases", 0) > expected_runs:
+                # Show the actual audited partial progress below, not an older
+                # completed stage whose smaller denominator hides later cases.
+                continue
+            if audit:
+                rejected = {row["caseId"] for row in audit["rejected"]}
+                if any(row.get("caseId") in rejected for row in samples):
+                    summary = {**summary, "valid": False, "score": None}
             reference_id = checkpoint.get("referenceCandidateId")
             if "referenceCandidateId" not in checkpoint:
                 artifact = run / "candidates" / f"{candidate_id}.json"
@@ -89,8 +127,42 @@ def candidates(run_dirs):
                           "optimizerProfile": checkpoint.get("optimizerProfile", manifest.get("optimizerProfile")),
                           "candidateOrigin": checkpoint.get("candidateOrigin"),
                           "referenceCandidateId": reference_id, "referencePlan": reference_plan,
-                          "summaryVersion": summary_path.stat().st_mtime_ns})
-    return found
+                          "audit": audit,
+                          "execution": execution_counts(summary_path.parent / "public-traces.jsonl", audit),
+                          "summaryVersion": max(summary_path.stat().st_mtime_ns, audit_path.stat().st_mtime_ns if audit else 0)})
+        if run_audit.get("status", manifest.get("status")) in {"failed", "cost-budget-complete", "account-blocked", "interrupted", "round-budget-complete"}:
+            for live in (run / "evaluations").glob("*/live-samples.jsonl"):
+                candidate_id = live.parent.name
+                checkpoint = run / "checkpoints" / f"{candidate_id}.json"
+                if not checkpoint.exists() or any(item["run"] == run and item["id"] == candidate_id for item in found):
+                    continue
+                usage_keys = {"providerAttempts", "failedProviderAttempts", "inputTokens", "outputTokens", "totalTokens", "unknownUsageAttempts"}
+                keep = {"caseId", "valid", "score", "latencyMs", "usageKnown"} | usage_keys
+                rows = {}
+                for line in live.read_text(encoding="utf-8").splitlines():
+                    row = json.loads(line, object_pairs_hook=lambda pairs: {k: v for k, v in pairs if k in keep})
+                    rows[row["caseId"]] = row
+                completed = [row for row in rows.values() if row.get("valid")]
+                audit_path = live.parent / "execution-audit.json"
+                audit = read_json(audit_path) if audit_path.exists() else None
+                if audit:
+                    valid_ids = set(audit["validCaseIds"])
+                    completed = [row for row in completed if row["caseId"] in valid_ids]
+                summary = {"valid": False, "examples": len(rows), "repeats": 1,
+                           "completedRuns": len(completed), "passedRuns": audit["passedRuns"] if audit else sum(row.get("score") == 1 for row in completed),
+                           "newUsage": {key: sum(row.get(key, 0) for row in rows.values()) for key in usage_keys},
+                           "newUsageIsCaseTelemetry": True}
+                found.append({"run": run, "id": candidate_id, "manifest": manifest,
+                              "plan": read_json(checkpoint)["plan"], "summary": summary, "samples": list(rows.values()),
+                              "referenceCandidateId": None, "referencePlan": None,
+                              "audit": audit,
+                              "execution": execution_counts(live.parent / "public-traces.jsonl", audit),
+                              "summaryVersion": live.stat().st_mtime_ns})
+    run_order = {str(run): index for index, run in enumerate(run_dirs)}
+    def item_order(item):
+        value = item["id"]
+        return (run_order[str(item["run"])], 0 if value.startswith("seed-") else 1, value)
+    return sorted(found, key=item_order)
 
 
 def fonts():
@@ -119,7 +191,7 @@ def number(value):
 
 
 def small_batch(item):
-    return item["manifest"].get("protocol", {}).get("id") in {SMALL_BATCH_PROTOCOL, EXPANDED_SEARCH_PROTOCOL}
+    return item["manifest"].get("protocol", {}).get("id") in STAGED_PROTOCOLS
 
 
 def expanded_search(item):
@@ -312,7 +384,7 @@ def render_detailed(items, output):
         representation = manifest.get("representation")
         cached_origin = item.get("candidateOrigin") == "llm-generated-cache"
         is_confirmation = confirmation(item)
-        label = f"{item['id']}" + (f" · {representation}" if representation else f" · {profile}")
+        label = f"{manifest.get('dataset', '').upper()} · {item['id']}" + (f" · {representation}" if representation else f" · {profile}")
         if is_expansion:
             label += " · 冻结扩展"
         elif is_confirmation:
@@ -322,7 +394,7 @@ def render_detailed(items, output):
         draw.text((x + 18, y + 16), fit(draw, label, f["heading"], card_width - 36), font=f["heading"], fill=INK)
         score = summary.get("score")
         valid = summary.get("valid") is True and summary.get("failedRuns", 0) == 0
-        metric = "F1" if manifest.get("dataset") == "drop" else "得分"
+        metric = manifest.get("metric") or ("F1" if manifest.get("dataset") == "drop" else "pass@1" if manifest.get("dataset") in {"mbpp", "humaneval"} else "得分")
         repeat_count = summary.get("repeats")
         score_kind = "单次" if repeat_count == 1 else "重复平均"
         score_label = f"{score_kind} {metric} {score * 100:.3f}%" if valid and isinstance(score, (int, float)) else "评测无效，分数不用于比较"
@@ -459,7 +531,8 @@ def render(items, output):
     canvas = Image.new("RGB", (width, height), BG)
     draw = ImageDraw.Draw(canvas)
     datasets = sorted({str(item["manifest"].get("dataset", "")).upper() for item in items})
-    draw.text((margin, 20), f"{' / '.join(datasets)} 工作流验证", font=f["title"], fill=INK)
+    evaluation = "独立测试" if all(item["manifest"].get("split") == "test" for item in items) else "工作流验证"
+    draw.text((margin, 20), f"{' / '.join(datasets)} {evaluation}", font=f["title"], fill=INK)
     models = " / ".join(sorted({str(item["manifest"].get("model", "")) for item in items}))
     batches = {(item["summary"].get("examples"), item["summary"].get("repeats")) for item in items}
     if len(batches) == 1:
@@ -478,18 +551,23 @@ def render(items, output):
         if representation in {"A", "B"} and (same_representation > 1 or expanded_search(item)):
             kind = "完整模块" if representation == "A" else "定义执行"
             heading = f"方案 {representation} · {candidate_round_label(item)} · {kind}"
+        if representation in {"A", "B"}:
+            heading = f"{manifest.get('dataset', '').upper()} · {candidate_round_label(item)} · 方案 {representation}"
+        heading = manifest.get("displayLabel") or heading
         draw.text((x + 20, card_y + 16), fit(draw, heading, f["heading"], card_width - 40), font=f["heading"], fill=INK)
         valid = summary.get("valid") is True and summary.get("failedRuns", 0) == 0
         score = summary.get("score")
-        score_label = "平均 F1" if summary.get("repeats", 1) > 1 else "F1"
+        metric = manifest.get("metric") or ("pass@1" if manifest.get("dataset") in {"mbpp", "humaneval"} else "F1")
+        score_label = f"平均 {metric}" if summary.get("repeats", 1) > 1 else metric
         score_text = f"{score_label} {score * 100:.3f}%" if valid and isinstance(score, (int, float)) else "未完成"
         draw.text((x + 20, card_y + 56), score_text, font=f["title"], fill=TEAL if valid else CAUTION)
         examples, repeats = summary.get("examples", "?"), summary.get("repeats", "?")
         stage_text = f"{examples}题 × {repeats}次"
-        if expanded_search(item):
-            stage_text += f" · 阶段 {summary.get('stage', examples)}/200"
+        if "completedRuns" in summary:
+            stage_text = f"完成 {summary['completedRuns']} 题 · 通过 {summary['passedRuns']} 题"
         elif small_batch(item) and not confirmation(item):
-            stage_text += f" · 阶段 {summary.get('stage', examples)}/64"
+            target = manifest.get("searchPolicy", {}).get("stages", [64])[-1]
+            stage_text += f" · 阶段 {summary.get('stage', examples)}/{target}"
         draw.text((x + 20, card_y + 101), stage_text, font=f["body"], fill=MUTED)
         if frozen_expansion(item):
             old_score, extra_score, _ = split_scores(item)
@@ -504,18 +582,32 @@ def render(items, output):
                 reference = candidate_round_label({"id": item["referenceCandidateId"]})
                 label = f"较{reference}：提示词/代码有变，节点结构相同"
                 draw.text((x + 20, card_y + 129), fit(draw, label, f["small"], card_width - 40), font=f["small"], fill=MUTED)
+        if item.get("audit"):
+            audit = item["audit"]
+            target = len(manifest.get("data", {}).get("taskIds", []))
+            complete = target > 0 and audit["validSampleCount"] >= target
+            stopped = manifest.get("status") in {"failed", "cost-budget-complete", "account-blocked", "interrupted"}
+            status = "审计完成" if complete else "中断 · 已保留有效" if stopped else "审计有效"
+            note = f"{status} {audit['validSampleCount']}/{target} 题"
+            if audit["rejected"]:
+                note += f" · 排除失败 {len(audit['rejected'])} 题"
+            draw.text((x + 20, card_y + 129), fit(draw, note, f["small"], card_width - 40), font=f["small"], fill=TEAL if complete else CAUTION)
         nodes = {node["id"]: node for node in plan["nodes"]}
         positions, bounds = {}, {}
         gy = graph_y
         for group in plan["graphs"]:
             gh = graph_size(group)
             draw.rounded_rectangle((x + 16, gy, x + card_width - 16, gy + gh), 9, fill=GROUP, outline=BORDER)
-            draw.text((x + 27, gy + 7), fit(draw, f"{group['id']} Graph", f["small"], card_width - 70), font=f["small"], fill=MUTED)
+            execution = item.get("execution")
+            unused_graph = execution is not None and not execution["graphs"].get(group["id"])
+            graph_label = f"{group['id']} Graph" + (" · 未执行" if unused_graph else "")
+            draw.text((x + 27, gy + 7), fit(draw, graph_label, f["small"], card_width - 70), font=f["small"], fill=MUTED)
             for local_index, node_id in enumerate(group["nodeIds"]):
                 node = nodes[node_id]
                 ny = gy + 31 + local_index * node_step
                 rect = (x + 30, ny, x + card_width - 47, ny + 62)
-                draw.rounded_rectangle(rect, 7, fill="white", outline=BORDER)
+                unused_node = execution is not None and not execution["nodes"].get(node_id)
+                draw.rounded_rectangle(rect, 7, fill="#edf0f4" if unused_node else "white", outline=BORDER)
                 operation = node["type"].removeprefix("INFER.REASONING.")
                 draw.text((rect[0] + 12, ny + 7), fit(draw, operation, f["node"], card_width - 105), font=f["node"], fill=INK)
                 draw.text((rect[0] + 12, ny + 35), fit(draw, node_id, f["small"], card_width - 105), font=f["small"], fill=MUTED)
@@ -542,11 +634,26 @@ def render(items, output):
             for graph_id, transition in plan.get("loop", {}).get("transitions", {}).items():
                 target_id = transition.get("graphId") if transition.get("kind") == "next" else None
                 if graph_id in bounds and target_id in bounds:
-                    arrow(draw, (x + card_width / 2, bounds[graph_id][1]), (x + card_width / 2, bounds[target_id][0]))
+                    if bounds[target_id][0] < bounds[graph_id][0]:
+                        lane = x + card_width - 25
+                        start_y, end_y = bounds[graph_id][1] - 10, bounds[target_id][0] + 16
+                        draw.line([(lane - 10, start_y), (lane, start_y), (lane, end_y)], fill=MUTED, width=2)
+                        arrow(draw, (lane, end_y), (lane - 10, end_y))
+                    else:
+                        arrow(draw, (x + card_width / 2, bounds[graph_id][1]), (x + card_width / 2, bounds[target_id][0]))
         usage = summary.get("newUsage")
         new_calls = usage_number(usage, "providerAttempts", "providerAttemptCount")
         new_tokens = usage_number(usage, "totalTokens")
-        footer = f"新增调用 {number(new_calls)} · Token {number(new_tokens)}"
+        unknown_usage = usage_number(usage, "unknownUsageAttempts") or 0
+        token_label = "Token 未知" if unknown_usage and not new_tokens else f"{'已知 ' if unknown_usage else ''}Token {number(new_tokens)}"
+        usage_label = "已记调用" if summary.get("newUsageIsCaseTelemetry") else "新评估调用"
+        footer = f"{usage_label} {number(new_calls)} · {token_label}"
+        latency = (item.get("audit") or {}).get("meanLatencyMs")
+        if latency is None and valid:
+            latencies = [row["latencyMs"] for row in item.get("samples", []) if isinstance(row.get("latencyMs"), (int, float))]
+            latency = sum(latencies) / len(latencies) if latencies else None
+        if isinstance(latency, (int, float)):
+            footer += f" · 有效题均 {latency / 1000:.1f}s"
         draw.text((x + 20, height - 93), fit(draw, footer, f["body"], card_width - 40), font=f["body"], fill=INK)
         output_label = "answer（Loop 返回）" if plan.get("loop", {}).get("control") == "generated-code" else plan.get("outputNodeId", "answer")
         draw.text((x + 20, height - 63), fit(draw, f"输出：{output_label}", f["small"], card_width - 40), font=f["small"], fill=MUTED)

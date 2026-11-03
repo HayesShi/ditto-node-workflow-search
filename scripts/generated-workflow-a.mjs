@@ -6,13 +6,14 @@ import { SUPPORTED_INFER_TYPES, INFER_CONTRACT_GUIDE, validateGeneratedInferInpu
 const ALLOWED_NODES = new Set(['CONTEXT.LOAD', 'INTERACTION.ACT.TOOL', 'INTERACTION.OBSERVE', ...SUPPORTED_INFER_TYPES]);
 const DEFAULT_TOOLS = ['locate_public_text', 'arithmetic'];
 const FORBIDDEN = new Set(['process', 'require', 'module', 'exports', 'global', 'globalThis', 'window', 'self', 'fetch', 'XMLHttpRequest', 'WebSocket', 'Worker', 'SharedWorker', 'WebAssembly', 'eval', 'Function', 'AsyncFunction', 'GeneratorFunction', 'Reflect', 'Proxy', 'constructor', '__proto__', 'prototype', 'setTimeout', 'setInterval', 'setImmediate', 'queueMicrotask', 'Buffer', 'Deno', 'Bun']);
+const FORBIDDEN_PROPERTIES = new Set(['constructor', '__proto__', 'prototype']);
 const CAPABILITY_NAMES = new Set(['graph', 'graphStep', 'loop', 'model', 'generation', 'unwrap', 'parseJson', 'answerText']);
 
 export const GENERATED_A_GUIDE_VERSION = 'generated-workflow-a-v3-native-infer-input-shapes-and-trace';
 export const GENERATED_A_GUIDE = String.raw`A output source contract (generated-workflow-a-v3-native-infer-input-shapes-and-trace):
 Return JavaScript module source, not TypeScript. It must contain exactly one default export:
 export default function createWorkflow(api) { /* create your Graphs and Loop here */ return { definition, outputNodeId, id }; }
-The source may declare ordinary helper functions and constants. Imports, require, host filesystem/network/process access, dynamic code generation and prototype reflection are unavailable. This loader performs engineering validation; VM/AST checking is not an operating-system security sandbox.
+The source may declare ordinary helper functions and constants. URL and URLSearchParams are available for parsing and encoding addresses. Imports, require, host filesystem/network/process access, dynamic code generation and prototype reflection are unavailable. This loader performs engineering validation; VM/AST checking is not an operating-system security sandbox.
 
 api contains only graph, graphStep, loop, model, generation, unwrap, parseJson, answerText.
 - api.graph(id) returns an immutable native Ditto Graph. g.node(id,type,dependencies,bind) returns a NEW Graph; assign or chain it. Build every Graph during createWorkflow. Node IDs are globally unique in the module. dependencies are earlier IDs in the SAME Graph. bind(input,localOutputs) receives the Graph input and only declared local dependencies. Pass values between Graphs explicitly in your Loop's graphStep inputs.
@@ -118,7 +119,7 @@ export function validateGeneratedWorkflowSource(source) {
     const token=tokens[i];
     if (token.kind === ts.SyntaxKind.ImportKeyword) fail('imports are unavailable');
     if (ts.tokenIsIdentifierOrKeyword(token.kind) && FORBIDDEN.has(token.value)) fail(`unavailable identifier ${token.value}`);
-    if ((token.kind === ts.SyntaxKind.StringLiteral || token.kind === ts.SyntaxKind.NoSubstitutionTemplateLiteral) && FORBIDDEN.has(token.value)) fail(`unavailable property ${token.value}`);
+    if ((token.kind === ts.SyntaxKind.StringLiteral || token.kind === ts.SyntaxKind.NoSubstitutionTemplateLiteral) && FORBIDDEN_PROPERTIES.has(token.value)) fail(`unavailable property ${token.value}`);
     if (token.value === 'api' && token.kind === ts.SyntaxKind.Identifier) {
       if (tokens[i+1]?.kind === ts.SyntaxKind.OpenBracketToken) fail('use named api capabilities, not computed api access');
       if (tokens[i+1]?.kind === ts.SyntaxKind.DotToken && !CAPABILITY_NAMES.has(tokens[i+2]?.value)) fail(`unknown API capability ${tokens[i+2]?.value}`);
@@ -208,11 +209,11 @@ export function compileGeneratedWorkflowA(source, capabilities, options = {}) {
     const proxy = new Proxy(real, { get(target, property) {
       if (property === 'node') return (id, type, dependencies, bind) => {
         if (!constructing) fail('create all Graphs during createWorkflow');
-        if (!ALLOWED_NODES.has(type)) fail(`unsupported node ${type}`);
-        if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(id)) fail('invalid node ID');
+        if (!ALLOWED_NODES.has(type)) fail(`unsupported node ${type}; use the full operation name: ${[...ALLOWED_NODES].join(', ')}`);
+        if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(id)) fail(`invalid node ID ${JSON.stringify(id)}; use /^[a-z][a-z0-9-]{0,63}$/ (lowercase letters, digits and hyphens; no underscores)`);
         if (typeof bind !== 'function' || !Array.isArray(dependencies)) fail('node requires dependencies and binding function');
         const current = new Set(target.tasks.map(task => task.id));
-        if (dependencies.some(dep => !current.has(dep))) fail('local dependencies must reference earlier nodes in the same Graph');
+        if (dependencies.some(dep => !current.has(dep))) fail(`local dependencies must reference earlier nodes in the same Graph: ${target.id}/${id} requires [${dependencies.join(', ')}], current Graph contains [${[...current].join(', ')}]. Graph.node() returns a NEW Graph; append subsequent nodes to that returned Graph.`);
         binderSources.set(`${target.id}:${id}`,String(bind));
         originalBinders.set(`${target.id}:${id}`,bind);
         return wrapGraph(target.node(id, type, dependencies, (input, outputs) => {
@@ -276,6 +277,8 @@ export function compileGeneratedWorkflowA(source, capabilities, options = {}) {
   });
   const context = vm.createContext(Object.create(null), { name:'generated-workflow-a', codeGeneration:{strings:false,wasm:false} });
   context.api = api;
+  context.URL = URL;
+  context.URLSearchParams = URLSearchParams;
   const script = new vm.Script(`"use strict";\n${executable}\n;createWorkflow(api);`, {filename:'generated-workflow-a.mjs'});
   const created = script.runInContext(context, {timeout:options.factoryTimeoutMs ?? 2000});
   constructing = false;

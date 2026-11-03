@@ -6,10 +6,10 @@
 
 | 命令 | 入口 |
 | --- | --- |
-| `npm run search:drop` | 原节点快照流程，默认优化器为 `baseline`。 |
-| `npm run experiment:drop:a` | A：模型生成 JavaScript 模块，从空历史开始，默认 64 题。 |
-| `npm run experiment:drop` | B：模型生成 Graph/Loop JSON 定义，从空历史开始，默认 64 题。 |
-| `npm run experiment:user-prompts` | 读取 [中文提示词](../prompts/README.md)，依次运行 A/B，默认 200 题。 |
+| `npm run search:drop` | 主线 unified search；原节点入口为 `search:drop:legacy`。 |
+| `npm run experiment:drop:a` | A：模型生成 JavaScript 模块，从空历史开始，默认 200 题。 |
+| `npm run experiment:drop` | A：模型生成 JavaScript 模块，从空历史开始，默认 200 题。 |
+| `npm run experiment:user-prompts` | 读取 [中文提示词](../prompts/README.md)，默认只运行 A，200 题；B 可显式选择。 |
 
 中文入口可指定方案：
 
@@ -45,15 +45,4 @@ powershell -NoProfile -File scripts/run-user-prompts.ps1 -Representation A
 - `best/`：完整规模最佳候选。
 - `workflow-report.png`：[流程图](workflow-report.md)。
 
-## 中文提示词实验
-
-以下为 200 道验证题上的搜索成绩，初始结构取自先前模型候选。独立测试待运行。
-
-![中文提示词 A/B 搜索：工作流、F1 与调用消耗](images/user-prompts-AB-results.png)
-
-| 方案 | 初始 200 题 F1 | 新候选 |
-| --- | ---: | --- |
-| A | 91.003% | 第1轮依赖缺失；模型修复后第2轮 200 题 91.174%，加入 REFLECT，评测调用由 200 增至 400。 |
-| B | 88.410% | 两轮分别为 70.923%、79.568%（64 题），淘汰后保留初始候选。 |
-
-每题一次。A 消耗 603 请求 / 647,525 tokens，B 消耗 658 请求 / 469,103 tokens。早期英文实验见 [实验记录](expanded-infer-search.md)。
+当前五数据集 A 实验与结果见 [A 工作流自进化](a-evolution.md)。

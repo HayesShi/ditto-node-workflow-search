@@ -1,6 +1,6 @@
-# 小批量搜索协议
+# 历史小批量搜索协议
 
-运行入口和代码见 [自动探索](autonomous-workflow-changes.md)。
+本页保留早期64题协议记录。当前入口和阶段规则见 [A 工作流自进化](a-evolution.md)。
 
 | 参数 | 64 题 | 200 题 |
 | --- | --- | --- |
@@ -37,4 +37,4 @@ node --env-file-if-exists=.env scripts/complete-small-batch-candidate.mjs --run-
 A 搜索目录：runs/generated-small-batch/drop/2026-10-27T10-45-36-347Z-A。
 B 搜索目录：runs/generated-small-batch/drop/2026-10-27T10-39-00-236Z-B。
 
-三次评测使用同一批64题。200题扩展结果见 [实验记录](expanded-infer-search.md)。
+三次评测使用同一批64题。当前200题入口见 [A 工作流自进化](a-evolution.md)。

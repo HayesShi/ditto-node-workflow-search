@@ -92,6 +92,12 @@ export default function createWorkflow(api) {
 
 `api` 只包含：`graph`、`graphStep`、`loop`、`model`、`generation`、`unwrap`、`parseJson`、`answerText`。
 
+`.node(id, type, dependencies, bind)` 的 `type` 必须使用完整名称：`CONTEXT.LOAD`、`INTERACTION.ACT.TOOL`、`INTERACTION.OBSERVE`、`INFER.REASONING.SAMPLE`、`INFER.REASONING.TRAJECTORY`、`INFER.REASONING.DELIBERATE`、`INFER.REASONING.REFLECT`。下文的 SAMPLE、REFLECT 等是说明用的简称。
+
+A 的 Infer 节点结果带外层封装。例如读取 SAMPLE 文本用 `api.unwrap(localOutputs.nodeId).message.content`；读取 REFLECT 结果也先调用 `api.unwrap`。
+
+节点 ID 必须匹配 `^[a-z][a-z0-9-]{0,63}$`：小写字母开头，后续使用小写字母、数字或连字符，不使用下划线。
+
 - `api.graph(id)` 返回不可变的原生 Ditto Graph。`g.node(id,type,dependencies,bind)` 返回一个新的 Graph，必须接住返回值或进行链式调用。所有 Graph 都应在 `createWorkflow` 中构建。节点ID在整个模块中全局唯一。`dependencies` 只能指向同一个 Graph 内较早声明的节点。`bind(input,localOutputs)` 接收 Graph 输入，以及显式声明的局部依赖输出。跨 Graph 传值时，应在 Loop 的 `graphStep` 输入中明确传递。
 - `api.graphStep(g,input)` 是生成器。在 Loop 的 plan 中使用 `const outputs = yield* api.graphStep(g,input)`。`outputs` 将节点ID映射到 Worker 输出，不是 GraphResult 封装。
 - `api.loop({id,maxIterations:Number.MAX_SAFE_INTEGER,*plan(task){...}})` 创建原生 Loop。Graph 执行顺序、分支、重复逻辑和公开应用状态由你控制。不得降低 `maxIterations`。plan 返回 `{answer:string,...可选公开细节}`。最终答案除去除首尾空白外保持不变。`api.answerText` 要求字符串，不进行任务专用的答案修正。
@@ -152,7 +158,7 @@ Worker 执行前会检查输入结构：
 
 ## 5. B：Graph/Loop 定义与固定执行器的接口说明
 
-版本：`generated-b-guide-v4-native-infer`。
+版本：`generated-b-guide-v5-dynamic-tools`。
 
 ### 5.1 顶层定义与节点
 
@@ -201,10 +207,10 @@ Reference 用于指向材料，不是内联内容的外层包装。JSONValue 可
 TOOL 使用：
 
 ```text
-call:{id:求值为非空字符串的表达式,name:工具名称字面值,arguments:求值为对象的表达式}
+call:{id:求值为非空字符串的表达式,name:求值为工具名称的表达式,arguments:求值为对象的表达式}
 ```
 
-name 必须在宿主提供的 allowedTools 列表中；arguments 必须符合该宿主工具的结构要求。
+name 可以是字面值或绑定表达式，求值后必须在宿主提供的 allowedTools 列表中；执行器在调用前校验工具名和参数。arguments 必须符合该宿主工具的结构要求。
 
 OBSERVE 的 result 引用 Interaction 的直接输出，不能传 Infer 封装或裸文本。工具参数结构由宿主单独提供。
 

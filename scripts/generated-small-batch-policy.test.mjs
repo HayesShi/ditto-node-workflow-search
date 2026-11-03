@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectSearchTasks, pairedStageDecision, bestFullCandidate, searchPolicyForSize, committedRequests } from './generated-small-batch-policy.mjs';
+
+test('code search expands to the complete pinned validation split', () => {
+  assert.deepEqual(searchPolicyForSize(33, 'humaneval').stages, [16, 32, 33]);
+  assert.deepEqual(searchPolicyForSize(86, 'mbpp').stages, [16, 32, 64, 86]);
+  assert.throws(() => searchPolicyForSize(64, 'mbpp'), /86 validation tasks/);
+  assert.throws(() => searchPolicyForSize(33, 'unknown'), /Unsupported/);
+});
+
+test('AutomationBench uses only the official complete Search split', () => {
+  assert.deepEqual(searchPolicyForSize(200, 'automationbench').stages, [16,32,64,128,200]);
+  assert.throws(() => searchPolicyForSize(6, 'automationbench'), /200 official tasks/);
+});
 test('selection is deterministic, nested and independent of scores', () => {
   const tasks = Array.from({length:200},(_,i)=>({id:'task-'+i,score:i/200}));
   const selected = selectSearchTasks(tasks);

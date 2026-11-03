@@ -44,6 +44,7 @@ export interface BenchmarkIdentity {
 }
 
 export interface BenchmarkEvaluationOptions {
+  readonly timeBudget?: import("../execution/time-budget.js").TimeBudgetPolicy;
   readonly repeats?: number;
   readonly concurrency?: number;
   readonly retryAttempts?: number;
@@ -67,7 +68,7 @@ export interface LoadedBenchmark {
   readonly tasks: readonly BenchmarkTask[];
   readonly identity?: BenchmarkIdentity;
   evaluate(runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions): Promise<EvaluationSummary>;
-  /** Explicit development search subset; does not change the formal full-split evaluator. */
+  /** Validation-only, with private scoring material retained inside the adapter. */
   evaluateSearchSubset?(taskIds: readonly string[], runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions): Promise<EvaluationSummary>;
 }
 

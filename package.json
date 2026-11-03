@@ -11,21 +11,33 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/test/*.test.js dist/benchmark/*.test.js scripts/night_watchdog.test.mjs",
+    "test": "npm run build && node --experimental-vm-modules --test --test-concurrency=2 dist/test/*.test.js dist/benchmark/*.test.js scripts/night_watchdog.test.mjs",
     "check": "npm run typecheck && npm test",
     "test:rounds": "node --env-file-if-exists=.env dist/round-test-runner.js",
-    "search:drop": "npm run build && node --env-file-if-exists=.env dist/cli.js search --dataset drop",
-    "experiment:drop": "powershell -NoProfile -File scripts/run-generated-search.ps1 -Representation B",
+    "search:drop": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset drop",
+    "search:drop:legacy": "npm run build && node --env-file-if-exists=.env dist/cli.js search --dataset drop",
+    "search:humaneval": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset humaneval",
+    "search:mbpp": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset mbpp",
+    "search:gsm8k": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset gsm8k",
+    "search:math": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search --dataset math",
+    "search": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js search",
+    "test:frozen": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/unified/cli.js test",
+    "experiment:legacy:a": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/coding/drop-small.js --method a",
+    "experiment:legacy:small": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env dist/coding/drop-small.js --method b",
+    "audit:prompts": "npm run build && node --experimental-vm-modules scripts/audit_unified_prompts.mjs",
+    "validate:drop:contract": "npm run build && node --experimental-vm-modules --env-file-if-exists=.env scripts/drop_answer_contract_smoke.mjs",
+    "audit:drop:contract": "npm run build && node --experimental-vm-modules scripts/audit_drop_answer_contract.mjs",
+    "experiment:drop": "powershell -NoProfile -File scripts/run-generated-search.ps1 -Representation A",
     "experiment:drop:a": "powershell -NoProfile -File scripts/run-generated-search.ps1 -Representation A",
-    "test:generated": "node --test scripts/generated-workflow-a.test.mjs scripts/generated-workflow-b.test.mjs scripts/generated-infer-contract.test.mjs scripts/generated-search-recovery.test.mjs scripts/generated-search-feedback.test.mjs scripts/generated-small-batch-policy.test.mjs scripts/expand-frozen-validation.test.mjs scripts/complete-small-batch-candidate.test.mjs scripts/prepare-user-prompt-run.test.mjs",
-    "search:humaneval": "npm run build && node --env-file-if-exists=.env dist/cli.js search --dataset humaneval",
-    "search:mbpp": "npm run build && node --env-file-if-exists=.env dist/cli.js search --dataset mbpp",
-    "search:gsm8k": "npm run build && node --env-file-if-exists=.env dist/cli.js search --dataset gsm8k",
-    "search:math": "npm run build && node --env-file-if-exists=.env dist/cli.js search --dataset math",
-    "experiment:user-prompts": "powershell -NoProfile -File scripts/run-user-prompts.ps1"
+    "experiment:user-prompts": "powershell -NoProfile -File scripts/run-user-prompts.ps1",
+    "experiment:a": "powershell -NoProfile -File scripts/run-a-evolution.ps1",
+    "test:generated": "node --test scripts/a-evolution-policy.test.mjs scripts/audit-generated-run.test.mjs scripts/complete-small-batch-candidate.test.mjs scripts/expand-frozen-validation.test.mjs scripts/generated-artifact-registry.test.mjs scripts/generated-infer-contract.test.mjs scripts/generated-proposal-json.test.mjs scripts/generated-provider-health.test.mjs scripts/generated-run-history.test.mjs scripts/generated-search-feedback.test.mjs scripts/generated-search-recovery.test.mjs scripts/generated-small-batch-policy.test.mjs scripts/generated-workflow-a.test.mjs scripts/generated-workflow-b.test.mjs scripts/prepare-user-prompt-run.test.mjs"
   },
   "dependencies": {
-    "@codesoul-co/ditto": "0.1.1"
+    "@codesoul-co/ditto": "0.1.1",
+    "@codesoul-co/ditto-retrieval": "0.1.0",
+    "acorn": "8.15.0",
+    "jsonrepair": "3.15.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

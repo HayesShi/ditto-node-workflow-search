@@ -1,9 +1,9 @@
 param(
-    [ValidateSet('A', 'B')][string]$Representation = 'B',
+    [ValidateSet('A', 'B')][string]$Representation = 'A',
     [ValidateRange(1, 1000)][int]$Rounds = 6,
     [ValidateRange(1, 4096)][int]$Concurrency = 3,
     [ValidateRange(1, 100000)][int]$MaxCalls = 500,
-    [ValidateSet(64, 200)][int]$ValidationSize = 64,
+    [ValidateSet(64, 200)][int]$ValidationSize = 200,
     [ValidateRange(1, 100000000)][int]$MaxTokens = 1500000
 )
 $ErrorActionPreference = 'Stop'

@@ -7,7 +7,28 @@ export const SMALL_BATCH_POLICY = Object.freeze({
   coarseRegression: {16: 0.15, 32: 0.08},
 });
 
-export function searchPolicyForSize(count = 64) {
+export function searchPolicyForSize(count = 64, dataset = 'drop') {
+  if (dataset === 'automationbench') {
+    if (count !== 200) throw Error('AutomationBench Search requires all 200 official tasks');
+    return Object.freeze({...SMALL_BATCH_POLICY,
+      id:'generated-automationbench-full-search-v1', metric:'pass rate',
+      stages:[16,32,64,128,200], coarseRegression:{16:0.15,32:0.08,64:0.05,128:0.03}});
+  }
+  if (dataset === 'math' || dataset === 'bfcl') {
+    const fullSize = dataset === 'math' ? 119 : 200;
+    if (count !== fullSize) throw Error(`${dataset} search must finish all ${fullSize} validation tasks`);
+    return Object.freeze({...SMALL_BATCH_POLICY, id:`generated-${dataset}-full-search-v1`, metric:'accuracy',
+      stages:[16,32,64,128].filter(size => size < count).concat(count),
+      coarseRegression:{16:0.15,32:0.08,64:0.05,128:0.03}});
+  }
+  if (dataset === 'humaneval' || dataset === 'mbpp') {
+    const fullSize = dataset === 'humaneval' ? 33 : 86;
+    if (count !== fullSize) throw Error(`${dataset} search must finish all ${fullSize} validation tasks`);
+    return Object.freeze({...SMALL_BATCH_POLICY, id:`generated-${dataset}-small-batch-v1`,
+      metric:'pass@1', stages:[16,32,64].filter(size => size < count).concat(count),
+      coarseRegression:{16:0.15,32:0.08,64:0.05}});
+  }
+  if (dataset !== 'drop') throw Error('Unsupported search dataset: ' + dataset);
   if (count === 64) return SMALL_BATCH_POLICY;
   if (count !== 200) throw Error('Supported validation sizes are 64 and 200');
   return Object.freeze({...SMALL_BATCH_POLICY, id:'generated-drop-expanded-v2',

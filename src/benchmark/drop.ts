@@ -1,5 +1,6 @@
 import type { BenchmarkTask, ScoreEvidence } from "../domain.js";
 import { evaluateTasks } from "./evaluator.js";
+import { searchSubset } from "./search-subset.js";
 import { readBenchmarkSplit } from "./fixed-splits.js";
 import { requireRecord, requireString, stableId } from "./io.js";
 import { lengthBucket } from "./sampling.js";
@@ -53,17 +54,7 @@ function loadedDrop(split: "validate" | "test", rows: readonly DropRow[], identi
     tasks,
     identity,
     evaluate: (runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) => evaluateTasks(tasks, scorer, runner, options),
-    evaluateSearchSubset(taskIds: readonly string[], runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) {
-      if (split !== "validate") throw new Error("Small-batch search may only use the validation split");
-      if (!taskIds.length || new Set(taskIds).size !== taskIds.length) throw new Error("Search subset must contain distinct task IDs");
-      const byId = new Map(tasks.map(task => [task.id, task]));
-      const selected = taskIds.map(id => {
-        const task = byId.get(id);
-        if (!task) throw new Error(`Unknown search task ID: ${id}`);
-        return task;
-      });
-      return evaluateTasks(selected, scorer, runner, options);
-    },
+    evaluateSearchSubset: (taskIds: readonly string[], runner: BenchmarkRunner, options?: BenchmarkEvaluationOptions) => evaluateTasks(searchSubset(split,tasks,taskIds),scorer,runner,options),
   });
 }
 

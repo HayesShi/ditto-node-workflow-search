@@ -85,6 +85,24 @@ test('B rejects unbound local data, unavailable tools, prototype paths and model
   assert.throws(() => validateEvidenceDefinition(label), /nonpublic task fields/);
 });
 
+test('B dispatches a bound tool name and rejects unregistered resolved names', async () => {
+  await harness(async (runtime, capabilities) => {
+    const definition = fixture();
+    definition.loop.state = { tool: 'arithmetic' };
+    definition.nodes[1].inputBindings.call.name = ref('state', 'tool');
+    const task = { id: 'dynamic', dataset: 'drop', prompt: 'p', outputInstruction: '' };
+    const result = await runtime.loop(compileEvidenceDefinition(definition, capabilities), task);
+    assert.equal(result.answer, 'two');
+    definition.loop.state.tool = 'private_judge';
+    await assert.rejects(() => runtime.loop(compileEvidenceDefinition(definition, capabilities), task), /unavailable tool/);
+    definition.loop.state.tool = 42;
+    await assert.rejects(() => runtime.loop(compileEvidenceDefinition(definition, capabilities), task), /string/);
+    definition.nodes[1].inputBindings.call.name = 'arithmetic';
+    definition.nodes[1].metadata = { role: 'executor' };
+    assert.throws(() => validateEvidenceDefinition(definition), /node\[calculated\].*metadata/);
+  });
+});
+
 test('B permits parallel siblings without forcing a model role template', async () => {
   await harness(async (runtime, capabilities, calls) => {
     const definition = fixture();
@@ -161,7 +179,7 @@ test('B catches the absent OBSERVE.content API field and accepts an observation 
     assert.equal(result.outputs.reloaded.items.length, 1);
     assert.ok(result.outputs.reloaded.items[0].content);
   });
-  assert.match(EVIDENCE_DEFINITION_GUIDE_VERSION, /v4/);
+  assert.match(EVIDENCE_DEFINITION_GUIDE_VERSION, /v5/);
   assert.match(EVIDENCE_DEFINITION_GUIDE, /OBSERVE has NO top-level content/);
 });
 

@@ -44,8 +44,8 @@ test("DROP subsets reject empty, duplicate and unknown task IDs before starting 
   const benchmark = await dropAdapter.load({ dataDir: directory, split: "validate", dataMode: "fixture" });
   let calls = 0;
   const runner = async () => { calls++; return runResult(); };
-  assert.throws(() => benchmark.evaluateSearchSubset!([], runner), /distinct task IDs/);
-  assert.throws(() => benchmark.evaluateSearchSubset!(["drop:a", "drop:a"], runner), /distinct task IDs/);
+  assert.throws(() => benchmark.evaluateSearchSubset!([], runner), /distinct nonempty task IDs/);
+  assert.throws(() => benchmark.evaluateSearchSubset!(["drop:a", "drop:a"], runner), /distinct nonempty task IDs/);
   assert.throws(() => benchmark.evaluateSearchSubset!(["drop:a", "drop:missing"], runner), /Unknown search task ID/);
   assert.equal(calls, 0);
 });
@@ -56,7 +56,7 @@ test("DROP test split cannot be used through the development subset evaluator", 
   await writeFile(join(directory, "drop_test.jsonl"), JSON.stringify({ id: "a", context: "PUBLIC held-out question", ref_text: "PRIVATE_HELD_OUT_REFERENCE" }) + "\n");
   const benchmark = await dropAdapter.load({ dataDir: directory, split: "test", dataMode: "fixture" });
   let calls = 0;
-  assert.throws(() => benchmark.evaluateSearchSubset!(["drop:a"], async () => { calls++; return runResult(); }), /only use the validation split/);
+  assert.throws(() => benchmark.evaluateSearchSubset!(["drop:a"], async () => { calls++; return runResult(); }), /restricted to the validation split/);
   assert.equal(calls, 0);
 });
 

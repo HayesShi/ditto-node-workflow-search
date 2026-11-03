@@ -1,40 +1,21 @@
-# 提示词
+# Prompt ownership and maintenance
 
-这里有两类提示词：**优化器提示词让模型改工作流，答题提示词让节点回答题目。**
+`optimizer-system.en.md` is the canonical cross-dataset optimizer system. Its version and expected SHA-256 are pinned in `src/unified/prompts.ts`; line endings are normalized before verification. Edits require an explicit protocol/version/hash update. Candidates cannot replace it.
 
-一次搜索的过程是：初始工作流答题 → 程序评分并整理反馈 → 优化模型生成新工作流 → 再次答题评分。
+Native reasoning operations have their own fixed system templates and the execution Agent's fixed contract. Different operations need not have identical text. Native parameter interpolation is audited; task instructions are not inserted into system messages. Ditto package files remain unchanged.
 
-A、B 的区别在于模型提交什么：A 提交完整 JavaScript 工作流代码；B 提交 JSON，写明节点、依赖和数据如何传递，由固定执行器运行。
+Candidate `instruction` fields, public tasks and output requirements are user data. The optimizer may change reusable task instructions, evidence organization, declared paths, queries and permitted criteria. It cannot rewrite the original task, scorer, system roles or permissions.
 
-| 文件 | 用途 |
-| --- | --- |
-| [expanded-search-prompts.zh-CN.md](expanded-search-prompts.zh-CN.md) | 实际读取的中文优化器提示词、任务要求和 A/B 接口说明。 |
-| [candidate-prompts-200.zh-CN.md](candidate-prompts-200.zh-CN.md) | 实际读取的 A/B 初始答题提示词。 |
-| [expanded-search-prompts.md](expanded-search-prompts.md) | 英文优化器与接口说明，供对照。 |
-| [candidate-prompts-200.md](candidate-prompts-200.md) | 模型生成的英文答题提示词，供对照。 |
-| [mflow-search-integrated.en.md](mflow-search-integrated.en.md) | MFlow 英文融合版，改动标黄，尚未接入运行。 |
+Retrieval's purpose, native schema and failure/permission semantics are fixed. A read-only host catalogue lists actual targets. User strategy can choose when to retrieve, query, `limit` and evidence consumption, but cannot expand the corpus. Retrieval need not invoke an LLM or have its own system prompt.
 
-编辑前两份文件、保存后，在项目目录运行：
+Each run freezes prompt versions/hashes and actual requests. Prompt, definition or helper changes create a new candidate identity requiring new evaluation. Source edits cannot alter a prior frozen run. Gold answers, private assertions and Test feedback are excluded from optimizer messages.
 
-```powershell
-npm.cmd run experiment:user-prompts
-```
+`npm run audit:prompts` checks these boundaries offline and makes no provider network calls.
 
-程序依次运行 A、B，每路最多生成 2 个新候选，逐级评测至 200 题，每题一次。每路预算为 1,250 次请求、150 万 token；运行会产生 API 费用。
+## Generated workflow experiments
 
-本轮输入保存在 `runs/user-prompts/<timestamp>/inputs/`。修改 Markdown 后需新开运行。初始结构来自 [模型生成的候选](../examples/generated-seeds)，替换提示词后重新评分。
+The standalone A experiment uses `expanded-search-prompts.zh-CN.md` for its generation contract, `a-evolution.zh-CN.md` for evolution guidance, and `dataset-initial-prompts.zh-CN.json` for task-specific capability reminders. These do not replace the canonical unified optimizer above.
 
-安装和其他入口见 [运行说明](../docs/autonomous-workflow-changes.md)。
+Run `npm run experiment:a -- -Dataset drop -Fresh` after preparing the dependencies described in [the A experiment guide](../docs/a-evolution.md). Each task is evaluated once; generated A code is executed by Ditto Graph/Loop/Workers. The B executor remains available for historical runs.
 
-## 评测反馈在哪里整理
-
-[`scripts/generated-search-feedback.mjs`](../scripts/generated-search-feedback.mjs) 同时服务于 A、B。它把已有评测结果整理给优化模型：
-
-| 函数 | 做什么 |
-| --- | --- |
-| `pairedFeedback()` | 对比新旧候选在同一道题上的得分，统计改善、退步、持平。 |
-| `chooseCases()` | 选取退步、低分、改善和答对的代表题目。 |
-| `traceFor()` | 提取这些题目实际运行时的节点输入、输出和错误摘要。 |
-| `buildGeneratedFeedback()` | 将得分、案例、节点记录和用量组成反馈，交给搜索入口。 |
-
-例如某道题旧版得分为 1、新版为 0，反馈会列出两版答案和选中的节点记录。优化模型据此判断问题出在哪一步，再决定改答题提示词、节点连接或处理代码。
+`generated-search-feedback.mjs` builds paired validation feedback and bounded public execution traces. Private scorer state, gold answers and Test feedback stay outside optimizer input.

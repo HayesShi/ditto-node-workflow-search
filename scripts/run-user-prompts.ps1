@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('A','B','Both')][string]$Representation = 'Both',
+    [ValidateSet('A','B','Both')][string]$Representation = 'A',
     [string]$PromptDirectory = 'prompts',
     [ValidateSet(64,200)][int]$ValidationSize = 200,
     [ValidateRange(1,1000)][int]$Rounds = 2,

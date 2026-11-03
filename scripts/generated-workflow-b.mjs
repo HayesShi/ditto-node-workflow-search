@@ -6,7 +6,7 @@ const DEFAULT_TOOLS = ['locate_public_text', 'arithmetic', 'text_contains'];
 const OPS = new Set(['literal', 'ref', 'get', 'json', 'parse', 'concat', 'coalesce', 'append']);
 const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const ID = /^[a-z][a-z0-9-]{0,63}$/;
-export const EVIDENCE_DEFINITION_GUIDE_VERSION = 'generated-b-guide-v4-native-infer';
+export const EVIDENCE_DEFINITION_GUIDE_VERSION = 'generated-b-guide-v5-dynamic-tools';
 
 export const EVIDENCE_DEFINITION_GUIDE = `Return a complete JSON workflow definition, never executable code.
 Exact top-level fields: schemaVersion:1, id:string, nodes:Node[], graphs:Graph[], loop:Loop, output:Output.
@@ -19,7 +19,7 @@ CONTEXT.LOAD input has sources:array. EVERY sources element must evaluate to an 
 - Reference: {uri:nonempty-string,mediaType?:nonempty-string,digest?:nonempty-string}. A Reference points to material; it is not an inline content wrapper.
 JSONValue means a string, finite number, boolean, null, array or JSON object. The object itself selects the source form: if id is present it is a ContextItem and MUST also contain content; otherwise if role is present it is a Message and MUST also contain content; otherwise it is a Reference and MUST contain uri. Thus {content:...} without role or id is INVALID, and a bare task.prompt string is INVALID. To load inline public text, bind it to the content field of a Message or ContextItem. An OBSERVE message can be referenced as an entire source object. These are API shapes, not required workflow steps.
 The following is the installed native Infer API contract. In B, put its input fields inside inputBindings using the bindings described below. The executor injects model, generation and node metadata; do not include those fields, providers, tools or code. Use json to serialize an object when supplying textual message content. ${INFER_CONTRACT_GUIDE}
-TOOL uses call:{id:nonempty-string-expression,name:literal-tool-name,arguments:object-expression}; name must be in the HOST's supplied allowedTools list, and arguments must satisfy that host tool's schema. OBSERVE uses result:reference-to-a-DIRECT-Interaction-output, not an Infer envelope or bare text. Tool argument schemas are supplied separately by the host.
+TOOL uses call:{id:nonempty-string-expression,name:string-expression,arguments:object-expression}; name may be a literal or binding and must resolve to a tool in the HOST's supplied allowedTools list. The executor checks the resolved name and arguments before dispatch. OBSERVE uses result:reference-to-a-DIRECT-Interaction-output, not an Infer envelope or bare text. Tool argument schemas are supplied separately by the host.
 Binding values are JSON constants, recursively evaluated arrays/objects, or an operator object with exactly ONE of these fields:
 {literal:JSONValue} preserves literal JSON without interpreting operators;
 {ref:["task",...path]} or {ref:["nodes",nodeId,...path]} reads a public task or a normalized node output;
@@ -259,7 +259,9 @@ function toolCallShape(bindingValue, label, allowedTools, resolved = false) {
   if (!knownObject(call, label)) return;
   for (const required of ['id', 'name', 'arguments']) if (!Object.hasOwn(call, required)) fail(`${label}.${required} is required`);
   knownNonemptyString(call.id, `${label}.id`, true);
-  if (!allowedTools.has(call.name)) fail(`${label} uses an unavailable tool`);
+  knownNonemptyString(call.name, `${label}.name`, true);
+  const dynamicName = !resolved && (call.name === UNKNOWN_STATIC || call.name === STRING_STATIC);
+  if (!dynamicName && !allowedTools.has(call.name)) fail(`${label} uses an unavailable tool; allowed: ${[...allowedTools].join(', ')}`);
   const args = call.arguments;
   if (!knownObject(args, `${label}.arguments`)) return;
   if (call.name === 'locate_public_text') {
@@ -374,7 +376,7 @@ export function validateEvidenceDefinition(definition, options = {}) {
   const stateKeys = new Set(Object.keys(definition.loop.state ?? {}));
   const nodes = new Map(), graphs = new Map();
   for (const node of definition.nodes) {
-    keys(node, ['id', 'type', 'graphId', 'dependencies', 'inputBindings'], ['id', 'type', 'graphId', 'dependencies', 'inputBindings'], 'node');
+    keys(node, ['id', 'type', 'graphId', 'dependencies', 'inputBindings'], ['id', 'type', 'graphId', 'dependencies', 'inputBindings'], `node[${node.id ?? '?'}]`);
     id(node.id, 'node.id'); id(node.graphId, 'node.graphId');
     if (nodes.has(node.id) || !TYPES.has(node.type)) fail('duplicate node ID or unsupported node type');
     if (!Array.isArray(node.dependencies) || new Set(node.dependencies).size !== node.dependencies.length) fail(`${node.id}.dependencies must be unique IDs`);

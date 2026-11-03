@@ -27,8 +27,25 @@ test('A records real Graphs and explicit local bindings without a hand-authored 
 });
 
 test('A rejects direct host APIs, import escapes and computed API access',()=>{
-  for(const statement of ['process.env.KEY;','require("fs");','fetch("https://invalid.example");','api["graph"]("x");','({}).constructor;','import("node:fs");'])
+  for(const statement of ['process.env.KEY;','require("fs");','fetch("https://invalid.example");','globalThis["fetch"]("https://invalid.example");','api["graph"]("x");','({}).constructor;','({})["constructor"];','import("node:fs");'])
     assert.throws(()=>validateGeneratedWorkflowSource(fixture.replace("const g =",`${statement} const g =`)),/Generated A validation/);
+});
+
+test('A permits a node named fetch and reads its output by key',()=>{
+  const source = fixture.replaceAll("'answer'", "'fetch'").replace('result.answer', "result['fetch']");
+  const loaded = compileGeneratedWorkflowA(source, capabilities);
+  const iterator = loaded.definition.plan({prompt:'fixture'});
+  const step = iterator.next().value;
+  assert.equal(step.graph.tasks[0].id, 'fetch');
+  step.graph.tasks[0].bind(step.input, {});
+  assert.equal(iterator.next({fetch:{status:'success',output:{message:{content:'observed'}}}}).value.answer, 'observed');
+});
+
+test('A supports URL parsing inside generated bindings',()=>{
+  const source = fixture.replace('content:task.prompt', "content:new URL(task.prompt).hostname + '?' + new URLSearchParams({q:'a b'}).toString()");
+  const loaded = compileGeneratedWorkflowA(source, capabilities);
+  const call = loaded.definition.plan({prompt:'https://example.com/path'}).next().value;
+  assert.equal(call.graph.tasks[0].bind(call.input, {}).messages[0].content, 'example.com?q=a+b');
 });
 
 test('A rejects wrong local dependencies and forged plan records',()=>{
