@@ -105,3 +105,14 @@ test('REFLECT preserves a known correct target on passed no-change without inven
  const {result}=await execute(definition,request=>({message:{role:'assistant',content:request.metadata.nodeType==='INFER.REASONING.REFLECT'?JSON.stringify({assessment:{passed:true,summary:'Correct'},issues:[]}):'42'},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}}));
  assert.equal(result.answer,'42');assert.equal(result.checkerAudits?.[0]?.decision,'preserved-passed-or-no-error');assert.equal(result.reflectionResponses[0]?.preservedKnownTarget,true);
 });
+
+
+test('BFCL baseline supplies one structured observation and executes call, respond and completed transitions',async()=>{
+ const {officialBaseline}=await import('../official-agent/baselines.js');
+ const definition=officialBaseline('bfcl');let complete=false;const actions:string[]=[];const seen:any[]=[];
+ const state=()=>({turn:0,complete,history:[{role:'user',content:'Add 20 and 22.'}],functions:[{name:'add',description:'Compute sum',parameters:{type:'object',properties:{a:{type:'integer'},b:{type:'integer'}}}}]});
+ const fakeWorld:any={tools:['bfcl_state','bfcl_call','bfcl_respond'].map(name=>({name,description:name,inputSchema:{type:'object',additionalProperties:true}})),assertHealthy(){},async call(name:string,args:any){actions.push(name);if(name==='bfcl_respond'){complete=true;return state();}if(name==='bfcl_call'){assert.deepEqual(args.calls,[{name:'add',arguments:{a:20,b:22}}]);return{turn:0,observations:['42'],complete:false};}return state();}};
+ const decisions=[{done:false,tool:'bfcl_call',arguments:{turn:0,calls:[{name:'add',arguments:{a:20,b:22}}]}},{done:false,tool:'bfcl_respond',arguments:{turn:0,message:'42'}},{done:true,tool:'',arguments:{}}];
+ const shared=createExperimentRuntime(settings,{provider:{async invoke(input){seen.push(input);return{message:{role:'assistant',content:JSON.stringify(decisions[seen.length-1])},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}};}}});
+ try{const result=await bfclScope.run(fakeWorld,()=>runOfficialAgent(definition,{...task,dataset:'bfcl'},shared,settings));assert.equal(result.modelFailure,undefined);assert.deepEqual(actions,['bfcl_state','bfcl_call','bfcl_respond']);assert.equal(seen.length,3);assert.equal(JSON.stringify(seen[0].messages).split('Compute sum').length-1,1);assert.match(JSON.stringify(seen[1].messages),/42/);assert.match(JSON.stringify(seen[2].messages),/complete/);}finally{await shared.close();}
+});
