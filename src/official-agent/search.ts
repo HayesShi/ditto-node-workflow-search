@@ -255,6 +255,10 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
         mutationLimits:{mainChange:1,auxiliary:'necessary connected predecessors/successors only',maxDeclaredNodes:24,maxExistingContentChanges:5,maxToolChanges:1,
           dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'}},
       interfaceGuide:GRAPH_DEFINITION_GUIDE,
+      ...(options.dataset==='bfcl'?{additionalHostOperations:{'bfcl-history':{
+        input:'{operation:"bfcl-history", tool:actualExecutedInterfaceName, value:actualPublicObservation, evidence:sourceLabeledEvidenceString, history:priorMessageArray}',
+        output:'{complete:boolean,history:Message[]}: complete is the actual public complete flag, not model text. Replace earlier full BFCL snapshots with the latest cumulative public snapshot; retain tagged errors and append later incremental observations. Does not choose actions, advance turns, invent functions or access private state.',
+      }}}:{}),
       ...(selection.explorationDirection?{exploration:explorationInstruction(selection.explorationDirection)}:{}),
       authorizedRetrievalTargets:[{name:'task-public',scope:'only this task public input; never other tasks, labels, confirmation or Test'}],
       publicTaskExamples:options.publicTasks.slice(0,2).map(task=>({id:task.id,prompt:task.prompt,outputInstruction:taskOutputRequirements(task)})),

@@ -1,4 +1,5 @@
 import {defineWorker,type WorkerNodes} from '@codesoul-co/ditto/worker';
+import {createHash} from 'node:crypto';
 import {BindingContractError,ModelOutputFormatError} from '../graph-agent/bindings.js';
 
 export const DATA_TRANSFORM_NODE='HOST.DATA.TRANSFORM';
@@ -24,6 +25,18 @@ export function transformOfficialData(input:any):any{
   case'concat':if(!Array.isArray(value)||value.some(v=>v!==null&&typeof v==='object'))throw new BindingContractError('Text concat requires scalar array');return value.map(v=>v==null?'':String(v)).join('');
   case'memory-ids':{const records=Array.isArray(value)?value:value?.items;if(!Array.isArray(records))throw new BindingContractError('Memory ID projection requires records');return records.map((v:any)=>v.id??v.memory?.id);}
   case'coalesce':if(!Array.isArray(value))throw new BindingContractError('Coalesce requires array');return value.find(v=>v!==null&&v!==undefined)??null;
+  case'bfcl-history':{
+   // A full public snapshot already contains the revealed conversation and schemas.
+   // Retain one such snapshot plus subsequent observations, without selecting any action.
+   if(!Array.isArray(input.history)||typeof input.evidence!=='string'||!value||typeof value!=='object')throw new BindingContractError('BFCL history requires public observation, evidence and message history');
+   const snapshot=Array.isArray(value.history)&&Array.isArray(value.functions)&&Number.isInteger(value.turn);
+   const previous=snapshot?input.history.filter((message:any)=>message.metadata?.bfclObservationError===true):input.history;
+   const signature=createHash('sha256').update(JSON.stringify(value)).digest('hex');
+   const prior=input.history.at(-1)?.metadata?.bfclObservation;
+   const reads=input.tool==='bfcl_state'?(prior?.tool==='bfcl_state'&&prior.signature===signature?prior.unchangedReads+1:1):0;
+   const feedback=`Actual last executed interface: ${input.tool??'public observation'}.`+(reads?` Consecutive reads of this unchanged public state: ${reads}. This state has already been supplied; reading it again does not reveal another turn or unlock functions. Use the available evidence to choose a useful business call or a truthful current-turn reply.`:'');
+   return {complete:value.complete===true,history:[...previous,{role:'user',content:feedback+'\n'+input.evidence,metadata:{...(value.error?{bfclObservationError:true}:{}),bfclObservation:{tool:input.tool??'observation',signature,unchangedReads:reads}}}]};
+  }
   case'evidence':return `Evidence supplied by declared upstream nodes (source labels identify origin, not correctness):\nSource: ${JSON.stringify(input.provenance??[])}\nValue:\n${JSON.stringify(value)}`;
   default:throw new BindingContractError('Unknown HOST.DATA.TRANSFORM operation');
  }
