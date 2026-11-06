@@ -1,0 +1,219 @@
+{
+  "protocol": "five-dataset-baseline-engineering-v1",
+  "formalTest": false,
+  "optimizerCalls": 0,
+  "modelAlias": "deepseek-flash",
+  "datasets": [
+    {
+      "dataset": "drop",
+      "tasks": 8,
+      "status": "completed",
+      "variants": [
+        {
+          "variant": "baseline",
+          "artifactHash": "eea13fdb86f853906b1de1c649062b524d2f342d7039d289a5105362c0063436",
+          "score": 0.9539473684210527,
+          "valid": true,
+          "validRuns": 8,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": null
+        },
+        {
+          "variant": "manual-seeded",
+          "artifactHash": "c6ecb7498b0ee11fab0d69859c66daa9a19a2f7b7cd2dd240041d4af752e4f43",
+          "score": 0.8152173913043478,
+          "valid": true,
+          "validRuns": 8,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": null
+        }
+      ]
+    },
+    {
+      "dataset": "humaneval",
+      "tasks": 8,
+      "status": "completed",
+      "variants": [
+        {
+          "variant": "baseline",
+          "artifactHash": "eea13fdb86f853906b1de1c649062b524d2f342d7039d289a5105362c0063436",
+          "score": 1,
+          "valid": true,
+          "validRuns": 8,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": null
+        },
+        {
+          "variant": "manual-seeded",
+          "artifactHash": "3d82e1b5d221baa846ab139e035e8c7c75485afd9649ee53a688af489fc7303d",
+          "score": 1,
+          "valid": true,
+          "validRuns": 8,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": null
+        }
+      ]
+    },
+    {
+      "dataset": "mbpp",
+      "tasks": 8,
+      "status": "completed",
+      "variants": [
+        {
+          "variant": "baseline",
+          "artifactHash": "eea13fdb86f853906b1de1c649062b524d2f342d7039d289a5105362c0063436",
+          "score": 0.875,
+          "valid": true,
+          "validRuns": 8,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": true
+        },
+        {
+          "variant": "manual-seeded",
+          "artifactHash": "459d585e19a39c7e0c043e2e0306d2a4b6e1e8de164f5bffc4ea38cc84439960",
+          "score": 0.75,
+          "valid": true,
+          "validRuns": 8,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": true
+        }
+      ]
+    },
+    {
+      "dataset": "automationbench",
+      "tasks": 4,
+      "status": "completed",
+      "variants": [
+        {
+          "variant": "baseline",
+          "artifactHash": "60c1a13efd6c6f7893c9b5e972a207dee65472797431f7b65664f5d04bc33256",
+          "score": 1,
+          "valid": true,
+          "validRuns": 4,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": null
+        },
+        {
+          "variant": "manual-seeded",
+          "artifactHash": "ab4a2da2020411e9d222ab7509b84d99fd7567148eaf8268ba46cb4028c62a1a",
+          "score": 1,
+          "valid": true,
+          "validRuns": 4,
+          "failedRuns": 0,
+          "regradedWithoutGeneration": null
+        }
+      ]
+    },
+    {
+      "dataset": "bfcl",
+      "tasks": 4,
+      "status": "completed",
+      "score": 0.75,
+      "validRuns": 4,
+      "results": [
+        {
+          "caseId": "bfcl:multi_turn_base_44#1",
+          "score": 1,
+          "valid": true,
+          "errorType": null,
+          "totalTokens": 93210,
+          "forced": false
+        },
+        {
+          "caseId": "bfcl:multi_turn_long_context_106#1",
+          "score": 0,
+          "valid": true,
+          "errorType": "multi_turn:execution_response_mismatch",
+          "totalTokens": 221019,
+          "forced": false
+        },
+        {
+          "caseId": "bfcl:multi_turn_miss_func_161#1",
+          "score": 1,
+          "valid": true,
+          "errorType": null,
+          "totalTokens": 63781,
+          "forced": false
+        },
+        {
+          "caseId": "bfcl:multi_turn_miss_param_167#1",
+          "score": 1,
+          "valid": true,
+          "errorType": null,
+          "totalTokens": 71050,
+          "forced": false
+        }
+      ]
+    }
+  ],
+  "knownProviderCalls": 169,
+  "knownTokens": 742845,
+  "regression": {
+    "tests": 360,
+    "passed": 360,
+    "failed": 0,
+    "skipped": 0
+  },
+  "currentDefinitions": [
+    {
+      "dataset": "drop",
+      "selection": "manual-seeded",
+      "sameExecutionDefinitionAsMeasured": true,
+      "artifactHash": "b30074f1ed3623233fb141b8d9c2197148088bfec42cb61ef63d89f12bf418c1"
+    },
+    {
+      "dataset": "humaneval",
+      "selection": "manual-seeded",
+      "sameExecutionDefinitionAsMeasured": true,
+      "artifactHash": "3d82e1b5d221baa846ab139e035e8c7c75485afd9649ee53a688af489fc7303d"
+    },
+    {
+      "dataset": "mbpp",
+      "selection": "baseline",
+      "sameExecutionDefinitionAsMeasured": true,
+      "artifactHash": "eea13fdb86f853906b1de1c649062b524d2f342d7039d289a5105362c0063436"
+    },
+    {
+      "dataset": "automationbench",
+      "selection": "manual-seeded",
+      "sameExecutionDefinitionAsMeasured": true,
+      "artifactHash": "ab4a2da2020411e9d222ab7509b84d99fd7567148eaf8268ba46cb4028c62a1a"
+    },
+    {
+      "dataset": "bfcl",
+      "selection": "baseline",
+      "sameExecutionDefinitionAsMeasured": true,
+      "artifactHash": "f1c5737bc5099928a3b3e6d14cc3c7a422cfdf3a359bfda2f70d86ec8ece9313"
+    }
+  ],
+  "initializationTrials": [
+    {
+      "dataset": "drop",
+      "run": "five-baseline-static-20261107",
+      "score": 0.8152173913043478,
+      "artifactHash": "c6ecb7498b0ee11fab0d69859c66daa9a19a2f7b7cd2dd240041d4af752e4f43",
+      "selected": false
+    },
+    {
+      "dataset": "drop",
+      "run": "five-baseline-drop-short-20261107",
+      "score": 0.9791666666666666,
+      "artifactHash": "b30074f1ed3623233fb141b8d9c2197148088bfec42cb61ef63d89f12bf418c1",
+      "selected": true
+    },
+    {
+      "dataset": "drop",
+      "run": "five-baseline-drop-entities-20261107",
+      "score": 0.975,
+      "artifactHash": "27e5cc782df92d95ff6cc89ea4eae1b69f69fee5e24a45dead91af3c4e2d3167",
+      "selected": false
+    }
+  ],
+  "recommendations": {
+    "drop": "manual-seeded short strategy, selected by Search; no independent Test evidence",
+    "humaneval": "baseline preserved; manual-seeded equal on subset",
+    "mbpp": "baseline preserved; manual-seeded rejected for quality regression",
+    "automationbench": "baseline and manual-seeded both pass; fixed decision JSON retained",
+    "bfcl": "repaired baseline; repeated queries resolved, official response mismatch kept as real zero"
+  }
+}

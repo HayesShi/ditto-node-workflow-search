@@ -284,14 +284,28 @@ export function extractPythonCandidate(modelOutput: string, publicPrompt: string
 function supportingPythonBlocks(blocks: readonly string[]): { support: boolean; signatureOnly: boolean }[] {
   const python = process.env.DITTO_PROVIDER_PYTHON?.trim() || "python";
   const script = fileURLToPath(new URL("../../scripts/python_support_blocks.py", import.meta.url));
-  const result: unknown = JSON.parse(execFileSync(python, ["-I", "-B", "-X", "utf8", script], {
-    input: JSON.stringify(blocks), encoding: "utf8", timeout: 5_000, maxBuffer: 1024 * 1024, windowsHide: true,
-  }));
+  const result: unknown = JSON.parse(runSupportBlockParser(python, script, JSON.stringify(blocks)));
   if (!Array.isArray(result) || result.length !== blocks.length || result.some(value =>
     !value || typeof value.support !== "boolean" || typeof value.signatureOnly !== "boolean")) {
     throw new Error("Invalid Python support-block syntax classification");
   }
   return result;
+}
+
+/** Only the trusted syntax parser is retried; candidate Python is never executed here. */
+function runSupportBlockParser(python: string, script: string, input: string): string {
+  // Python startup can exceed five seconds under concurrent environment/Docker
+  // startup on Windows. Two bounded attempts allow recovery without rerunning
+  // generation, the candidate program or its private tests.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return execFileSync(python, ["-I", "-B", "-X", "utf8", script], {
+        input, encoding: "utf8", timeout: 30_000, maxBuffer: 1024 * 1024, windowsHide: true,
+      });
+    } catch (error) {
+      if (attempt !== 0 || (error as NodeJS.ErrnoException | null)?.code !== "ETIMEDOUT") throw error;
+    }
+  }
 }
 
 function stripPlainLanguagePrefix(output: string): string {

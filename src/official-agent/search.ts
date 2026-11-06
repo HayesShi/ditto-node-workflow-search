@@ -256,9 +256,10 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
           dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'}},
       interfaceGuide:GRAPH_DEFINITION_GUIDE,
       ...(options.dataset==='bfcl'?{additionalHostOperations:{'bfcl-history':{
-        input:'{operation:"bfcl-history", tool:actualExecutedInterfaceName, value:actualPublicObservation, evidence:sourceLabeledEvidenceString, history:priorMessageArray}',
+        input:'{operation:"bfcl-history", tool:actualExecutedInterfaceName, decision:actualExecutedParsedDecision, value:actualPublicObservation, evidence:sourceLabeledEvidenceString, history:priorMessageArray}',
         output:'{complete:boolean,history:Message[]}: complete is the actual public complete flag, not model text. Replace earlier full BFCL snapshots with the latest cumulative public snapshot; retain tagged errors and append later incremental observations. Does not choose actions, advance turns, invent functions or access private state.',
       }}}:{}),
+      ...(options.dataset==='automationbench'?{additionalHostOperations:{'tool-history':{input:'{operation:"tool-history", tool:actualExecutedInterfaceName, decision:actualExecutedParsedDecision, value:nativeObservation, evidence:sourceLabeledEvidenceString, history:priorMessageArray}',output:'{complete:false,history:Message[]}: preserve actual assistant action plus paired observations; no success inference, action selection or automatic completion.'}}}:{}),
       ...(selection.explorationDirection?{exploration:explorationInstruction(selection.explorationDirection)}:{}),
       authorizedRetrievalTargets:[{name:'task-public',scope:'only this task public input; never other tasks, labels, confirmation or Test'}],
       publicTaskExamples:options.publicTasks.slice(0,2).map(task=>({id:task.id,prompt:task.prompt,outputInstruction:taskOutputRequirements(task)})),

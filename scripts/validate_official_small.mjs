@@ -25,17 +25,17 @@ for(const dataset of datasets){
   if(['mbpp','humaneval'].includes(dataset)){execFileSync('docker',['info','--format','{{.ServerVersion}}'],{stdio:'pipe',timeout:15000,windowsHide:true});execFileSync('docker',['image','inspect','python:3.13-slim'],{stdio:'pipe',timeout:15000,windowsHide:true});}
   const benchmark=await loadBenchmark(dataset,{dataDir:resolve(flags.get(dataset+'-data')??flags.get('data-dir')??'../data/datasets'),split:'validate',dataMode:'formal',limit:0,artifactDir:join(folder,'private'),...(['mbpp','humaneval'].includes(dataset)?{codeJudge:new DockerPythonJudge({image:'python:3.13-slim'})}:{})});
   const count=Number(flags.get('count')??(dataset==='bfcl'||dataset==='automationbench'?4:8));
-  const eligible=benchmark.tasks.filter(task=>!flags.has('category')||task.metadata.category===flags.get('category'));
+  const eligible=benchmark.tasks.filter(task=>(!flags.has('category')||task.metadata.category===flags.get('category'))&&(!flags.has('exclude-category')||task.metadata.category!==flags.get('exclude-category')));
   let selected=eligible.slice().sort((a,b)=>createHash('sha256').update('42:'+a.id).digest('hex').localeCompare(createHash('sha256').update('42:'+b.id).digest('hex'))).slice(0,count);
   if(flags.get('selection')==='category-balanced'){const ordered=eligible.slice().sort((a,b)=>createHash('sha256').update('42:'+a.id).digest('hex').localeCompare(createHash('sha256').update('42:'+b.id).digest('hex')));selected=[...new Set(ordered.map(t=>t.metadata.category))].sort().map(category=>ordered.find(t=>t.metadata.category===category)).slice(0,count);}
   row.selection=selected.map(t=>({id:t.id,metadata:t.metadata}));row.dataIdentity=benchmark.identity;row.model=settings.model;await save();
   shared=createExperimentRuntime(settings,{beforeProviderCall:input=>admitProviderBudgets(input,[budget,...(caseBudget?[caseBudget]:[])]),afterProviderCall:async event=>{await settleProviderBudgets(event,[budget,...(caseBudget?[caseBudget]:[])]);await appendFile(join(folder,'provider.jsonl'),JSON.stringify({metadata:event.input.metadata,output:event.output,error:event.error?.message,diagnostics:event.diagnostics})+'\n');}});
-  for(const variant of ['baseline',...(['drop','mbpp','humaneval'].includes(dataset)?['pr10-selected']:[])]){
-   const definition=structuredClone(officialBaseline(dataset)),init=loadOfficialInitialization(dataset,variant==='baseline'?'baseline':'pr10-selected');
+  for(const variant of (flags.get('variants')?.split(',')??['baseline',...(['drop','mbpp','humaneval'].includes(dataset)?['pr10-selected']:[])])){
+   const definition=structuredClone(officialBaseline(dataset)),init=loadOfficialInitialization(dataset,variant);
    if(definition.loop&&flags.has('max-iterations'))definition.loop.maxIterations=Number(flags.get('max-iterations'));
    definition.config={...definition.config,...(init.seedStrategy?{strategy:init.seedStrategy}:{}),firstTaskRepeat:init.presentation==='repeat-task-on-first-sample'};validateOfficialDefinition(definition);
    await writeFile(join(folder,variant+'.agent.json'),JSON.stringify(definition,null,2));
-   const record={variant,artifactHash:officialArtifactHash(definition),status:'running'};row.variants.push(record);await save();
+   const record={variant,initialization:init,artifactHash:officialArtifactHash(definition),status:'running'};row.variants.push(record);await save();
    const summary=await benchmark.evaluateSearchSubset(selected.map(t=>t.id),async task=>{caseBudget=flags.has('per-case-max-tokens')?createProviderBudget({maxCalls:Number(flags.get('per-case-max-calls')??100),maxTokens:Number(flags.get('per-case-max-tokens'))}):undefined;return withWorkflowTimeBudget({requestMs:180000,workflowMs:Number(flags.get('workflow-ms')??600000)},async()=>{
     try{const run=await runOfficialAgent(definition,task,shared,settings);await appendFile(join(folder,variant+'.executions.jsonl'),JSON.stringify({taskId:task.id,question:task.prompt,...run})+'\n');return run;}
     catch(error){await appendFile(join(folder,variant+'.errors.jsonl'),JSON.stringify({taskId:task.id,error:error.message,code:error.code,partialRun:error.partialRun})+'\n');throw error;}

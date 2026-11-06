@@ -2,9 +2,12 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import type {DatasetName} from '../domain.js';
 import {artifactHash} from '../unified/store.js';
+import {INITIAL_USER_STRATEGIES_VERSION,INITIAL_USER_STRATEGIES,AUTOMATION_INITIAL_GUIDANCE} from './task-strategies.js';
+import {AUTOMATION_DECISION_INSTRUCTION} from '../graph-agent/automation-baseline.js';
+import {BFCL_DECISION_STRATEGY} from './bfcl-strategy.js';
 
 export const OFFICIAL_INITIALIZATION_VERSION='official-optional-user-initialization-v1';
-export const OFFICIAL_INITIALIZATION_SELECTIONS=['baseline','pr10-selected','pr7-guidance'] as const;
+export const OFFICIAL_INITIALIZATION_SELECTIONS=['baseline','pr10-selected','pr7-guidance','manual-seeded'] as const;
 export type OfficialInitializationSelection=typeof OFFICIAL_INITIALIZATION_SELECTIONS[number];
 export type OfficialTaskPresentation='no-repeat'|'repeat-task-on-first-sample';
 interface SourceAsset {readonly path:string;readonly sha256:string;}
@@ -42,7 +45,11 @@ export function loadOfficialInitialization(dataset:DatasetName,selection:Officia
  if(!OFFICIAL_INITIALIZATION_SELECTIONS.includes(selection))throw Error('Unknown official initialization selection');
  let guidance:OfficialInitialization['guidance']=null,seedStrategy:string|undefined,presentation:OfficialTaskPresentation='no-repeat';
  let provenance:OfficialInitialization['provenance']={assets:[]};
- if(selection==='pr10-selected'){
+ if(selection==='manual-seeded'){
+  seedStrategy=dataset==='automationbench'?AUTOMATION_DECISION_INSTRUCTION+'\n'+AUTOMATION_INITIAL_GUIDANCE:dataset==='bfcl'?BFCL_DECISION_STRATEGY:INITIAL_USER_STRATEGIES[dataset];
+  if(seedStrategy===undefined)throw Error(`No reviewed manual initialization for ${dataset}`);
+  guidance={source:'manual-public-task-user-initialization',version:INITIAL_USER_STRATEGIES_VERSION,seedStrategySha256:createHash('sha256').update(seedStrategy).digest('hex'),scope:'Generic public task and interface guidance only; no private reference answers, task-ID rules, test assertions, or extra permissions. The fixed system and public contracts remain authoritative.'};
+ }else if(selection==='pr10-selected'){
   if(!['drop','humaneval','mbpp','automationbench'].includes(dataset))throw Error(`No reviewed PR10 strategy asset for ${dataset}`);
   const card=readAsset('pr10/'+dataset+'.json'),template=readAsset('pr10/strategy-template.json'),profile=card.data;
   if(profile.dataset!==dataset||profile.version!=='dataset-initialization-v1'||template.data.version!=='strategy-construction-v1')throw Error('PR10 initialization schema mismatch');

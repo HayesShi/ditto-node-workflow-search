@@ -11,6 +11,16 @@ selecting `pr7-guidance` supplies an optional public strategy pool. These are
 initialization hypotheses, not current-backend quality claims. The source cards'
 historical research scores never enter optimizer or execution messages.
 
+`manual-seeded` selects the versioned public-task user guidance in
+`src/official-agent/task-strategies.ts`, the existing Automation JSON contract
+with its public execution guidance, or the current BFCL decision strategy.
+Select it explicitly with `--initialization manual-seeded`; the default baseline
+is retained. Its snapshot includes the exact strategy text and content digest.
+The initial small Search checks supported the short DROP strategy, while the
+MBPP proposal regressed and is not recommended over its original baseline.
+These are Search-subset observations, not independent Test results; see
+`docs/five-dataset-baseline-validation-20261107.zh-CN.md`.
+
 The PR7 pool's old A-specific resource reminders and Worker-registration claims
 are retained only as source provenance. The loader does not inject them into the
 new official runtime. Actual capabilities and permissions come from the current

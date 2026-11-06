@@ -92,11 +92,19 @@ test("real Ditto cancellation terminates tools before the next evaluation slot s
   assert.equal(closed, 3);
 });
 
-test("SDK retry progress preserves both HTTP attempts and infrastructure cause on cancellation", async () => {
-  const fixture = `const {createInterface}=await import('node:readline');const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n');createInterface({input:process.stdin}).on('line',line=>{const r=JSON.parse(line);if(r.cancel!==undefined)return;const d={requestId:r.id,attempts:1,failedAttempts:1,unknownUsageAttempts:1,usageKnown:false,inputTokens:0,outputTokens:0,totalTokens:0};emit({id:r.id,event:'attempt',status:503,diagnostics:d});emit({id:r.id,event:'attempt',diagnostics:{...d,attempts:2}});});`;
+test("SDK retry progress preserves both HTTP attempts and infrastructure cause on cancellation", { timeout: 10_000 }, async t => {
+  const fixture = `const {createInterface}=await import('node:readline');const emit=x=>process.stdout.write(JSON.stringify(x)+'\\n');createInterface({input:process.stdin}).on('line',line=>{const r=JSON.parse(line);if(r.cancel!==undefined)return;const d={requestId:r.id,attempts:1,failedAttempts:1,unknownUsageAttempts:1,usageKnown:false,inputTokens:0,outputTokens:0,totalTokens:0};emit({id:r.id,event:'attempt',status:503,diagnostics:d});emit({id:r.id,event:'attempt',diagnostics:{...d,attempts:2}});emit({id:r.id,event:'start',status:200});});`;
   const transport = new PythonTransport(settings, { command: process.execPath, arguments: ["--input-type=module", "-e", fixture] });
+  // Startup may exceed 500ms under parallel Windows tests. Exercise expiry after
+  // observing retry progress, rather than racing that intended precondition.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const provider = withRequestTimeBudget({ async invoke(_input, { signal }) {
-    await transport.fetch(settings.baseUrl, { body: "{}", signal });
+    const response = await transport.fetch(settings.baseUrl, { body: "{}", signal });
+    // The start frame follows both attempt frames on the same JSONL stream.
+    assert.equal(response.status, 200);
+    const pendingBody = response.text();
+    t.mock.timers.tick(500);
+    await pendingBody;
     return sample;
   } });
   try {
@@ -106,7 +114,7 @@ test("SDK retry progress preserves both HTTP attempts and infrastructure cause o
     assert.match(result.results[0]?.error ?? "", /HTTP 503/);
     assert.equal(result.providerAttemptCount, 2);
     assert.equal(result.unknownUsageAttemptCount, 2);
-  } finally { await transport.close(); }
+  } finally { t.mock.timers.reset(); await transport.close(); }
 });
 
 test("cancelled queued tool calls never restart a worker after manager close", async () => {

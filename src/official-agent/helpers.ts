@@ -25,17 +25,33 @@ export function transformOfficialData(input:any):any{
   case'concat':if(!Array.isArray(value)||value.some(v=>v!==null&&typeof v==='object'))throw new BindingContractError('Text concat requires scalar array');return value.map(v=>v==null?'':String(v)).join('');
   case'memory-ids':{const records=Array.isArray(value)?value:value?.items;if(!Array.isArray(records))throw new BindingContractError('Memory ID projection requires records');return records.map((v:any)=>v.id??v.memory?.id);}
   case'coalesce':if(!Array.isArray(value))throw new BindingContractError('Coalesce requires array');return value.find(v=>v!==null&&v!==undefined)??null;
+  case'tool-history':{
+   const decision=input.decision;
+   if(!Array.isArray(input.history)||typeof input.evidence!=='string'||!value||typeof value!=='object'||Array.isArray(value)||value.source!==input.tool||!value.message||!['success','failed','cancelled','timeout','unknown'].includes(value.status))throw new BindingContractError('Tool history requires native observation, source-labeled evidence and prior message history');
+   if(!decision||decision.done!==false||decision.tool!==input.tool||!decision.arguments||typeof decision.arguments!=='object'||Array.isArray(decision.arguments))throw new BindingContractError('Tool history decision must identify the actually invoked interface and object arguments');
+   const executedDecision={done:false,tool:decision.tool,arguments:structuredClone(decision.arguments)};
+   // Tool transport status and business response text are evidence, never task-completion signals.
+   return{complete:false,history:[...input.history,{role:'assistant',content:JSON.stringify(executedDecision),metadata:{toolExecutedDecision:true}},{role:'user',content:input.evidence}]};
+  }
   case'bfcl-history':{
    // A full public snapshot already contains the revealed conversation and schemas.
    // Retain one such snapshot plus subsequent observations, without selecting any action.
    if(!Array.isArray(input.history)||typeof input.evidence!=='string'||!value||typeof value!=='object')throw new BindingContractError('BFCL history requires public observation, evidence and message history');
    const snapshot=Array.isArray(value.history)&&Array.isArray(value.functions)&&Number.isInteger(value.turn);
    const previous=snapshot?input.history.filter((message:any)=>message.metadata?.bfclObservationError===true):input.history;
+   const decision=input.decision;
+   if(decision!==undefined&&(!decision||decision.done!==false||decision.tool!==input.tool||!decision.arguments||typeof decision.arguments!=='object'||Array.isArray(decision.arguments)))throw new BindingContractError('BFCL history decision must identify the actually executed interface and object arguments');
+   // The next model must see which business function and exact arguments produced each result.
+   // The parsed decision's finalAnswer is a host default and is not part of the executed action.
+   const executedDecision=decision?{done:false,tool:decision.tool,arguments:structuredClone(decision.arguments)}:undefined;
+   const actionSignature=executedDecision?createHash('sha256').update(JSON.stringify(executedDecision)).digest('hex'):undefined;
    const signature=createHash('sha256').update(JSON.stringify(value)).digest('hex');
    const prior=input.history.at(-1)?.metadata?.bfclObservation;
    const reads=input.tool==='bfcl_state'?(prior?.tool==='bfcl_state'&&prior.signature===signature?prior.unchangedReads+1:1):0;
-   const feedback=`Actual last executed interface: ${input.tool??'public observation'}.`+(reads?` Consecutive reads of this unchanged public state: ${reads}. This state has already been supplied; reading it again does not reveal another turn or unlock functions. Use the available evidence to choose a useful business call or a truthful current-turn reply.`:'');
-   return {complete:value.complete===true,history:[...previous,{role:'user',content:feedback+'\n'+input.evidence,metadata:{...(value.error?{bfclObservationError:true}:{}),bfclObservation:{tool:input.tool??'observation',signature,unchangedReads:reads}}}]};
+   const repeats=executedDecision?.tool==='bfcl_call'?(prior?.tool==='bfcl_call'&&prior.actionSignature===actionSignature&&prior.signature===signature?(prior.identicalExecutions??1)+1:1):0;
+   const feedback=`Actual last executed interface: ${input.tool??'public observation'}.`+(reads?` Consecutive reads of this unchanged public state: ${reads}. This state has already been supplied; reading it again does not reveal another turn or unlock functions. Use the available evidence to choose a useful business call or a truthful current-turn reply.`:'')+(repeats>1?` Consecutive executions of the identical business arguments with the same returned observation: ${repeats}. These were real executions, not cached results. Repeating a write may repeat its effects. Use the actual observation and public schema to decide whether another call is useful; an unchanged error alone is not evidence that repeating it will help.`:'')+(Array.isArray(value.observations)&&value.observations.includes('None')?' Raw observation "None" is preserved. It can be a function\'s no-value return; by itself it proves neither failure nor successful completion of the task. Consult the public schema and, if necessary, a useful available verification operation; do not repeat a write solely to obtain a non-empty return.':'');
+   const errorMetadata=value.error?{bfclObservationError:true}:{};
+   return {complete:value.complete===true,history:[...previous,...(executedDecision?[{role:'assistant',content:JSON.stringify(executedDecision),metadata:{...errorMetadata,bfclExecutedDecision:true}}]:[]),{role:'user',content:feedback+'\n'+input.evidence,metadata:{...errorMetadata,bfclObservation:{tool:input.tool??'observation',signature,unchangedReads:reads,identicalExecutions:repeats,...(actionSignature?{actionSignature}:{})}}}]};
   }
   case'evidence':return `Evidence supplied by declared upstream nodes (source labels identify origin, not correctness):\nSource: ${JSON.stringify(input.provenance??[])}\nValue:\n${JSON.stringify(value)}`;
   default:throw new BindingContractError('Unknown HOST.DATA.TRANSFORM operation');

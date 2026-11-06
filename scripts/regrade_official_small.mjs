@@ -4,7 +4,7 @@ import {loadBenchmark,DockerPythonJudge} from '../dist/benchmark/index.js';
 import {officialArtifactHash} from '../dist/official-agent/schema.js';
 const root=resolve(process.argv[2]),dataDir=resolve(process.argv[3]??'../data/datasets');
 const manifest=JSON.parse(await readFile(join(root,'summary.json'),'utf8'));
-for(const dataset of ['humaneval','mbpp']){
+for(const dataset of (process.argv[4]?.split(',')??['humaneval','mbpp'])){
  const row=manifest.datasets.find(r=>r.dataset===dataset);if(!row)continue;
  const benchmark=await loadBenchmark(dataset,{dataDir,split:'validate',dataMode:'formal',limit:0,codeJudge:new DockerPythonJudge({image:'python:3.13-slim'})});
  if(JSON.stringify(benchmark.identity)!==JSON.stringify(row.dataIdentity))throw Error('Replay data identity changed');
@@ -17,4 +17,5 @@ for(const dataset of ['humaneval','mbpp']){
  }
  row.status=row.variants.every(v=>v.valid)?'completed':'invalid-evaluation';
 }
+manifest.status=manifest.datasets.every(row=>row.status==='completed')?'completed':'completed-with-blockers';
 await writeFile(join(root,'summary.json'),JSON.stringify(manifest,null,2)+'\n');console.log(JSON.stringify({regraded:true,newModelCalls:0}));

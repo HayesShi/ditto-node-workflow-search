@@ -141,3 +141,66 @@ test('official BFCL forced completion ends the loop before another model request
  const shared=createExperimentRuntime(settings,{provider:{async invoke(){calls++;assert.equal(calls,1,'No paid request after official completion');return{message:{role:'assistant',content:JSON.stringify({done:false,tool:'bfcl_call',arguments:{turn:0,calls:[{name:'available',arguments:{}}]}})},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}};}}});
  try{const result=await bfclScope.run(fakeWorld,()=>runOfficialAgent(officialBaseline('bfcl'),{...task,dataset:'bfcl'},shared,settings));assert.equal(actions,2);assert.equal(calls,1);assert.equal(result.executionBudget,undefined);assert.equal(result.rawNodeOutputs['action/observe'].structuredContent.forced,true);}finally{await shared.close();}
 });
+
+test('BFCL next decisions retain executed function arguments, raw None and errors through snapshot replacement',async()=>{
+ const {officialBaseline}=await import('../official-agent/baselines.js');
+ const actions:string[]=[];const publicHistory:any[]=[{role:'user',content:'Write the requested report.'}];let complete=false;let requests=0;
+ const write={done:false,tool:'bfcl_call',arguments:{turn:0,calls:[{name:'echo',arguments:{file_name:'report.txt',content:'exact-public-content'}}]}};
+ const failed={done:false,tool:'bfcl_call',arguments:{turn:0,calls:[{name:'read_report',arguments:{file_name:'unavailable.txt'}}]}};
+ const decisions=[write,failed,{done:false,tool:'bfcl_state',arguments:{}},{done:false,tool:'bfcl_respond',arguments:{turn:0,message:'The write returned None; the other read was unavailable.'}}];
+ const state=()=>({turn:0,complete,history:structuredClone(publicHistory),functions:[{name:'echo',description:'Write report; may return no value.'},{name:'read_report',description:'Read a report.'}]});
+ const fakeWorld:any={tools:['bfcl_state','bfcl_call','bfcl_respond'].map(name=>({name,description:name,inputSchema:{type:'object',additionalProperties:true}})),assertHealthy(){},async call(name:string,args:any){
+  actions.push(name);
+  if(name==='bfcl_respond'){complete=true;return state();}
+  if(name==='bfcl_state')return state();
+  if(args.calls[0].name==='echo'){assert.deepEqual(args,write.arguments);publicHistory.push({role:'assistant',calls:args.calls},{role:'tool',name:'echo',content:'None'});return{turn:0,complete:false,observations:['None']};}
+  assert.deepEqual(args,failed.arguments);return{turn:0,error:'Requested report is unavailable'};
+ }};
+ const shared=createExperimentRuntime(settings,{provider:{async invoke(input){
+  const step=requests++;assert(step<decisions.length,'Official completion needs no further model request');
+  const messages=input.messages as any[];
+  if(step===1){const index=messages.findIndex(m=>m.role==='assistant');assert(index>=0);assert.deepEqual(JSON.parse(messages[index].content),write);assert.match(messages[index+1].content,/"observations":\["None"\]/);assert.match(messages[index+1].content,/proves neither failure nor successful completion/);}
+  if(step===2||step===3){const index=messages.findIndex(m=>m.role==='assistant'&&JSON.parse(m.content).arguments.calls?.[0]?.name==='read_report');assert(index>=0);assert.deepEqual(JSON.parse(messages[index].content),failed);assert.match(messages[index+1].content,/Requested report is unavailable/);}
+  return{message:{role:'assistant',content:JSON.stringify(decisions[step])},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}};
+ }}});
+ try{const result=await bfclScope.run(fakeWorld,()=>runOfficialAgent(officialBaseline('bfcl'),{...task,dataset:'bfcl'},shared,settings));assert.equal(result.modelFailure,undefined);assert.equal(requests,4);assert.deepEqual(actions,['bfcl_state','bfcl_call','bfcl_call','bfcl_state','bfcl_respond']);assert.equal(result.executionBudget,undefined);}finally{await shared.close();}
+});
+
+test('BFCL identical business-call feedback records every actual action and distinguishes arguments and results',async()=>{
+ const {transformOfficialData}=await import('../official-agent/helpers.js');
+ const decision={done:false,tool:'bfcl_call',arguments:{turn:0,calls:[{name:'echo',arguments:{file_name:'report.txt',content:'A'}}]}};
+ let history:any[]=[];
+ const append=(d:any,value:any)=>{const result=transformOfficialData({operation:'bfcl-history',tool:d.tool,decision:d,value,evidence:JSON.stringify(value),history});history=result.history;return result;};
+ for(let count=1;count<=3;count++){append(decision,{turn:0,complete:false,observations:['None']});assert.equal(history.at(-1).metadata.bfclObservation.identicalExecutions,count);}
+ assert.equal(history.filter(m=>m.role==='assistant').length,3);
+ for(const message of history.filter(m=>m.role==='assistant'))assert.deepEqual(JSON.parse(message.content),decision);
+ assert.match(history.at(-1).content,/same returned observation: 3/);assert.match(history.at(-1).content,/real executions, not cached/);assert.match(history.at(-1).content,/"None"/);
+ const different=structuredClone(decision);different.arguments.calls[0]!.arguments.content='B';append(different,{turn:0,complete:false,observations:['None']});assert.equal(history.at(-1).metadata.bfclObservation.identicalExecutions,1);
+ append(different,{turn:0,complete:false,observations:['Changed observation']});assert.equal(history.at(-1).metadata.bfclObservation.identicalExecutions,1);
+ assert.throws(()=>transformOfficialData({operation:'bfcl-history',tool:'bfcl_respond',decision,value:{turn:0,complete:false},evidence:'actual',history}),/BFCL history decision/);
+});
+
+test('Automation Loop preserves actual endpoint arguments paired with errors and observations before the next decision',async()=>{
+ const {officialBaseline}=await import('../official-agent/baselines.js');const {automationScope}=await import('../benchmark/automation.js');
+ const decisions=[{done:false,tool:'api_fetch',arguments:{method:'GET',url:'https://service.invalid/wrong',params:null,body:null}},{done:false,tool:'api_search',arguments:{query:'create record',top_k:1}},{done:false,tool:'api_fetch',arguments:{method:'POST',url:'https://service.invalid/records',params:null,body:'{"Name":"PublicName"}'}},{done:true,tool:'',arguments:{},finalAnswer:'Created the record returned as rec-public.'}];
+ const bodies=['{"error":"Endpoint unavailable","complete":true}','{"results":[{"url":"https://service.invalid/records","method":"POST"}]}','{"id":"rec-public","complete":true}'];
+ const invoked:any[]=[];let requests=0;
+ const fakeWorld:any={tools:['api_search','api_fetch','base64_encode'].map(name=>({name,description:name,inputSchema:{type:'object',additionalProperties:true}})),assertHealthy(){},record(){},async call(name:string,args:any){const index=invoked.length;invoked.push({tool:name,arguments:args});assert.deepEqual(invoked[index],{tool:decisions[index]!.tool,arguments:decisions[index]!.arguments});return{content:bodies[index]};}};
+ const shared=createExperimentRuntime(settings,{provider:{async invoke(input){
+  const step=requests++;assert(step<decisions.length,'No unrequested extra model call');const messages=input.messages as any[];
+  const recorded=messages.filter(m=>m.role==='assistant');assert.equal(recorded.length,step);
+  for(let index=0;index<recorded.length;index++){const expected=decisions[index]!;assert.deepEqual(JSON.parse(recorded[index].content),{done:false,tool:expected.tool,arguments:expected.arguments});const position=messages.indexOf(recorded[index]);const evidence=messages[position+1];assert.equal(evidence.role,'user');assert.match(evidence.content,/Evidence supplied by declared upstream nodes/);assert(evidence.content.includes(JSON.stringify(bodies[index])),'Exact raw tool response stays paired with its originating endpoint and arguments');}
+  return{message:{role:'assistant',content:JSON.stringify(decisions[step])},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}};
+ }}});
+ try{const result=await automationScope.run(fakeWorld,()=>runOfficialAgent(officialBaseline('automationbench'),{...task,dataset:'automationbench',prompt:'Discover the API and create the requested public record.',outputInstruction:'Use the official tools.'},shared,settings));assert.equal(result.modelFailure,undefined);assert.equal(result.executionBudget,undefined);assert.equal(result.answer,decisions[3]!.finalAnswer);assert.equal(requests,4,'Business complete fields must not be used as official conversation termination');assert.equal(invoked.length,3);assert.equal(result.rawNodeOutputs['action/history'].complete,false);}finally{await shared.close();}
+});
+
+test('generic tool history preserves native failure evidence without inferring completion',async()=>{
+ const {transformOfficialData}=await import('../official-agent/helpers.js');
+ const decision={done:false,tool:'api_fetch',arguments:{url:'https://service.invalid/wrong',method:'GET'}};
+ const observation={source:'api_fetch',callId:'public-call',status:'failed',message:{role:'tool',content:'failed: TOOL_INPUT: Bad parameters'},error:{code:'TOOL_INPUT',message:'Bad parameters'},structuredContent:{complete:true}};
+ const args={operation:'tool-history',tool:'api_fetch',decision,value:observation,evidence:JSON.stringify(observation),history:[{role:'user',content:'existing public input'}]};
+ const result=transformOfficialData(args);assert.equal(result.complete,false);assert.equal(result.history.length,3);assert.deepEqual(JSON.parse(result.history[1].content),decision);assert.equal(result.history[2].content,JSON.stringify(observation));assert.equal(args.history.length,1);
+ assert.throws(()=>transformOfficialData({...args,tool:'api_search'}),/Tool history requires native observation/);
+ assert.throws(()=>transformOfficialData({...args,decision:{...decision,done:true}}),/Tool history decision/);
+});

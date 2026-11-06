@@ -25,6 +25,7 @@ npm run search -- --dataset bfcl --data-dir DATA_BFCL --output-dir runs/bfcl-off
 - 默认 `baseline`：固定基线，不自动采用高分历史结果。
 - `pr10-selected`：导入四数据集已审核的 user 策略文字和首次任务呈现设置；不是原历史工作流的成绩复用。
 - `pr7-guidance`：五数据集提示池仅作为优化器 user 侧先验，不把旧 A 环境的能力说明当作当前资源权限。
+- `manual-seeded`：显式采用版本化的通用人工 user 初始化，保留固定 system、原题和当前权限；Search 小样本中 DROP 短提示有改善，MBPP 人工版退步，不能整体替代默认基线。详见 `docs/five-dataset-baseline-validation-20261107.zh-CN.md`。
 
 初始化资产保存来源、内容哈希和快照。续跑使用保存的初始化，身份不同会拒绝；Test 使用已经冻结的图，不用当前策略替换它。Test 仍要求明确的冻结 Search run-dir，不自动从今天的策略资产启动一个未选优 Test。
 

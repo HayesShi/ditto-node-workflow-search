@@ -14,7 +14,7 @@ export function parseUnifiedArguments(argv:readonly string[],cwd=process.cwd()):
  const dataset=flags.get('dataset')??'drop';if(!DATASETS.includes(dataset as DatasetName))throw Error('Unknown dataset '+dataset);
  if(flags.has('rounds')&&flags.has('max-valid-evaluations'))throw Error('Use --rounds or --max-valid-evaluations, not both');
  const initialization=flags.get('initialization')??'baseline';
- if(!['baseline','pr10-selected','pr7-guidance'].includes(initialization))throw Error('Unknown initialization');
+ if(!['baseline','pr10-selected','pr7-guidance','manual-seeded'].includes(initialization))throw Error('Unknown initialization');
  const resume=bool('resume'),runDir=flags.get('run-dir'),outputDir=flags.get('output-dir');
  if((command==='test'||resume)&&!runDir)throw Error('Test/resume requires --run-dir');
  if(command==='test'&&outputDir)throw Error('Test writes below its frozen Search run; do not supply --output-dir');
@@ -22,7 +22,7 @@ export function parseUnifiedArguments(argv:readonly string[],cwd=process.cwd()):
  if(command==='test'&&flags.has('user-prompt-file'))throw Error('Test cannot replace frozen candidate instructions');
  if(runDir&&command==='search'&&!resume)throw Error('--run-dir requires --resume true for Search');
  if(resume&&outputDir)throw Error('Resume uses its existing --run-dir');
- return {...(flags.has('initialization')?{initialization:initialization as 'baseline'|'pr10-selected'|'pr7-guidance'}:{}),command,dataset:dataset as DatasetName,projectRoot:resolve(cwd),dataDir:resolve(cwd,flags.get('data-dir')??'data/datasets'),
+ return {...(flags.has('initialization')?{initialization:initialization as 'baseline'|'pr10-selected'|'pr7-guidance'|'manual-seeded'}:{}),command,dataset:dataset as DatasetName,projectRoot:resolve(cwd),dataDir:resolve(cwd,flags.get('data-dir')??'data/datasets'),
   ...(outputDir?{outputDir:resolve(cwd,outputDir)}:{}),...(runDir?{runDir:resolve(cwd,runDir)}:{}),resume,offlineOnly:bool('offline-only'),
   ...(flags.has('user-prompt-file')?{userPromptFile:resolve(cwd,flags.get('user-prompt-file')!)}:{}),
   maxValidEvaluations:flags.has('rounds')?integer('rounds',20):integer('max-valid-evaluations',20),maxDesignRounds:integer('max-design-rounds',100),maxProposalAttempts:integer('max-proposal-attempts',3,1,8),
