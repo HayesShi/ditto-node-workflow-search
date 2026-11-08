@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-08",
+  "proposalContract": "official-proposal-envelope-v1",
+  "nativeContracts": "ditto-0.1.5-native-contracts-v2",
+  "fullRegression": {
+    "tests": 374,
+    "passed": 374,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 218638.2232,
+    "log": "../output/proposal-contract-repair-regression-20261108-final.log",
+    "environment": "Real installed Automation environment; subprocess/localhost access enabled"
+  },
+  "focusedRegression": {"tests": 42, "passed": 42, "failed": 0},
+  "typecheck": "passed",
+  "promptAudit": {
+    "passed": true,
+    "optimizerSystemFrozen": true,
+    "nodeSystemFrozen": true,
+    "privateReferenceExcluded": true,
+    "optimizerSystemSha256": "b56a5e7f102616b05482d9c88a67fd7a2bcd7cb91ff46a4aee99f1b2fb0a46f6",
+    "artifact": "../output/proposal-contract-repair-20261108/final-prompt-audit/audit.json"
+  },
+  "historicalReplay": {
+    "passed": true,
+    "attempts": 24,
+    "invalidAttemptsRejectedBeforeExecution": 23,
+    "validExecutionDefinitionsPreserved": 1,
+    "modelCalls": 0,
+    "toolCalls": 0,
+    "privateJudgeCalls": 0,
+    "compatibilityNote": "The historical valid Automation execution definition remains valid. Its old noncanonical mutation metadata is rejected by the explicit new envelope contract and needs migration; full-envelope backward compatibility is not claimed.",
+    "artifact": "../output/proposal-contract-repair-20261108/final-replay.json"
+  }
+}

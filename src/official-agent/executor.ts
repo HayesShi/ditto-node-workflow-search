@@ -25,6 +25,9 @@ import {bfclScope,BFCL_GUIDE} from '../benchmark/bfcl.js';
 import {createBfclTools} from '../ditto/bfcl-tools.js';
 import {AutomationActorBudgetExceeded} from '../execution/automation-budget.js';
 import {createOfficialDataWorker} from './helpers.js';
+import {HOST_INFER_MESSAGES_SCHEMA} from './native-contracts.js';
+import {validateNativeLiteral} from './native-validation.js';
+import {DefinitionError} from '../graph-agent/schema.js';
 
 export const OFFICIAL_EXECUTOR_VERSION='ditto-official-compiled-agent-v1';
 export const OFFICIAL_EVIDENCE_VERSION='official-native-source-map-v1';
@@ -66,7 +69,7 @@ function messageText(value:unknown,nodeId:string):string{
   if(part?.type==='json'&&Object.hasOwn(part,'data'))return JSON.stringify(part.data);
   throw new OfficialAgentContractError('Unsupported native message part in final answer',nodeId);
  }).join('\n');
- throw new OfficialAgentContractError('Final output must be an answer string or native MessagePart[] content; configure Graph/Loop output explicitly',nodeId);
+ throw new OfficialAgentContractError('Final output must be an answer string or native MessagePart[] content; explicitly serialize numeric/tool values with HOST.DATA.TRANSFORM operation:"text" before projecting Graph/Loop output',nodeId);
 }
 
 /** The npm compiler owns expressions, Subgraph expansion, bindings, DAG and Loop scheduling. */
@@ -130,6 +133,8 @@ export async function runOfficialAgent(definition:AgentDefinition,task:Benchmark
     if((definition.config as any)?.firstTaskRepeat===true)prepared.messages.push({...originalTaskMessage});
    }
    if(taskRequirements)prepared.messages.push({role:'user',content:`Fixed public task output requirements (apply to final answers; preserve an explicitly requested intermediate artifact format):\n${taskRequirements}`});
+   try{validateNativeLiteral(prepared.messages,HOST_INFER_MESSAGES_SCHEMA,`${sourceFor(event)?.path??'nodes/'+nodeId}/input/messages`);}
+   catch(error){if(error instanceof DefinitionError)throw new OfficialAgentContractError(`${error.detail}. This host requires string content or {type:"text",text:string}[]; use HOST.DATA.TRANSFORM text/json/concat to serialize data. $op:concat joins arrays, not text.`,nodeId,error.path);throw error;}
    if(type==='INFER.REASONING.REFLECT'){
     const criteria=(prepared.criteria??[]).map((c:any)=>c.description);
     validateCheckerCriteria(task.dataset,criteria);

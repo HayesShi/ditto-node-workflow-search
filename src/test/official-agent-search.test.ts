@@ -58,6 +58,14 @@ test('official search preserves parent policy, protected native directions, and 
  const runtime:any={async run(_g:any,input:any){requests.push(input.request);const request=JSON.parse(input.request),direction=request.exploration.direction;directions.push(direction);return{proposal:{status:'success',output:{message:{content:JSON.stringify(child(direction))}}}};}};
  const result=await searchOfficialWorkflows({runtime,model:{provider:'mock',model:'mock'},dataset:'drop',publicTasks:[task],expectedRepeats:1,maxValidEvaluations:5,maxDesignRounds:4,maxProposalAttempts:1,evaluate:async d=>summary(d)});
  assert.deepEqual(directions,['interaction','context-retrieval','native-reasoning','memory-cache']);assert.equal(result.state.validEvaluations,5);assert(!requests.join('').includes('PRIVATE_SENTINEL'));assert.equal(result.best.definition.version,1);
+ for(const text of requests){
+  const request=JSON.parse(text);
+  assert.equal(request.proposalContract.schema.properties.rationale.type,'string');
+  assert.deepEqual(request.proposalContract.schema.properties.mutation.required,['primaryNodeId','auxiliary']);
+  assert(request.nativeCatalogue.nodes['CONTEXT.SELECT'].inputSchema.properties.purpose.enum.includes('infer'));
+  assert.deepEqual(request.registeredTools.find((tool:any)=>tool.name==='bounded_arithmetic').inputSchema.required,['expression']);
+  assert(request.interfaceGuide.includes('rationale is ONE NONEMPTY STRING'));
+ }
 });
 
 test('tool artifacts participate in candidate identity while official JSON remains portable',()=>{

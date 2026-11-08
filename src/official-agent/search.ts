@@ -14,6 +14,9 @@ import {UNIFIED_DEFAULTS,UNIFIED_SEARCH_POLICY,comparableTokens} from '../unifie
 import {OFFICIAL_OPTIMIZER_SYSTEM as UNIFIED_OPTIMIZER_SYSTEM,OFFICIAL_OPTIMIZER_SYSTEM_SHA256 as UNIFIED_OPTIMIZER_SYSTEM_SHA256,OFFICIAL_PROMPT_VERSION as UNIFIED_PROMPT_VERSION} from './prompts.js';
 import {publicAnswerContract,taskOutputRequirements} from '../benchmark/answer-contract.js';
 import {EVIDENCE_PRESENTATION_VERSION} from '../graph-agent/evidence.js';
+import {validateProposalEnvelope,OFFICIAL_PROPOSAL_SCHEMA,OFFICIAL_PROPOSAL_CONTRACT_VERSION} from './proposal-contract.js';
+import {NATIVE_CONTRACTS,NATIVE_CONTRACTS_VERSION,HOST_TOOL_CONTRACTS,HOST_INFER_MESSAGES_SCHEMA} from './native-contracts.js';
+import {STANDARD_TOOL_CONTRACTS} from './tool-contracts.js';
 import {MULTI_WORKER_POLICY,EXPLORATION_DIRECTIONS,directionForRound,explorationInstruction,type ExplorationDirection} from '../unified/exploration.js';
 
 export interface OfficialEvaluation extends FeedbackEvaluation {}
@@ -138,11 +141,10 @@ export function parseOfficialProposal(content:string):{rationale:string;definiti
     const offset=position?Number(position[1]):0,snippet=content.trim().slice(Math.max(0,offset-80),offset+80);
     throw Error(`Invalid proposal JSON: ${detail}. Near ${JSON.stringify(snippet)}. Escape quotes/backslashes/newlines inside strings; return one complete JSON object.`);
   }
-  if(!value||Array.isArray(value)||Object.keys(value).some(key=>!['rationale','definition','mutation','toolArtifacts'].includes(key))
-    ||typeof value.rationale!=='string'||!value.rationale.trim()||value.rationale.length>8000||!Object.hasOwn(value,'definition'))throw Error('Return exactly rationale and definition');
-  const tools=value.toolArtifacts as ToolDefinition[]|undefined;const definition=validateDefinition(value.definition,tools);
+  const envelope=validateProposalEnvelope(value);
+  const tools=envelope.toolArtifacts;const definition=validateDefinition(envelope.definition,tools);
   if((definition as {version:number}).version!==1)throw Error('Official candidates must use definition version:1');
-  return {rationale:value.rationale,definition,...(tools?{toolArtifacts:tools}:{}),...(value.mutation?{mutation:value.mutation as MutationExplanation}:{})};
+  return {rationale:envelope.rationale,definition,...(tools?{toolArtifacts:tools}:{}),...(envelope.mutation?{mutation:envelope.mutation}:{})};
 }
 
 /** One measured parent per design round. Engineering repairs stay in that round and retain all attempts. */
@@ -161,7 +163,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
   const explore=options.exploration!==false;
   if(explore&&officialNodes(baseline).filter(n=>n.node.type==='INFER.REASONING.SAMPLE').length>1)throw Error('Protected multi-worker search requires a baseline with at most one SAMPLE');
   if((baseline as {version:number}).version!==1)throw Error('Official baseline must use version:1');
-  const configurationHash=digest({policy:UNIFIED_SEARCH_POLICY,system:UNIFIED_OPTIMIZER_SYSTEM_SHA256,identity:options.identity??null,dataset:options.dataset,
+  const configurationHash=digest({policy:UNIFIED_SEARCH_POLICY,system:UNIFIED_OPTIMIZER_SYSTEM_SHA256,contracts:{proposal:OFFICIAL_PROPOSAL_CONTRACT_VERSION,native:NATIVE_CONTRACTS_VERSION,guide:digest(GRAPH_DEFINITION_GUIDE)},identity:options.identity??null,dataset:options.dataset,
     model:options.model,generation:GENERATION,answerContract:publicAnswerContract(options.dataset),evidencePresentation:EVIDENCE_PRESENTATION_VERSION,exploration:explore?MULTI_WORKER_POLICY:false,taskIds:options.publicTasks.map(task=>task.id),repeats,maxValid,maxDesign,maxAttempts,patience,seed,baseline:officialArtifactHash(baseline),initialization:options.initialization??null});
   const random=new SeededRandom(seed);
   let state:OfficialSearchState=options.resume?structuredClone(options.resume):{schemaVersion:1,policy:UNIFIED_SEARCH_POLICY,configurationHash,
@@ -255,6 +257,10 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
         mutationLimits:{mainChange:1,auxiliary:'necessary connected predecessors/successors only',maxDeclaredNodes:24,maxExistingContentChanges:5,maxToolChanges:1,
           dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'}},
       interfaceGuide:GRAPH_DEFINITION_GUIDE,
+      proposalContract:{version:OFFICIAL_PROPOSAL_CONTRACT_VERSION,schema:OFFICIAL_PROPOSAL_SCHEMA},
+      nativeCatalogue:{version:NATIVE_CONTRACTS_VERSION,nodes:NATIVE_CONTRACTS},
+      providerMessages:{schema:HOST_INFER_MESSAGES_SCHEMA,scope:'Fixed text-model host adapter; native Infer unknown[] is not permission to send arbitrary arrays/JSON to HTTP. Serialize data explicitly with HOST.DATA.TRANSFORM text/json/concat.'},
+      registeredTools:[...STANDARD_TOOL_CONTRACTS,...Object.entries(HOST_TOOL_CONTRACTS).map(([name,contract])=>({name,...contract})).filter(tool=>options.dataset==='bfcl'?String(tool.name).startsWith('bfcl_'):options.dataset==='automationbench'?['api_search','api_fetch','base64_encode'].includes(String(tool.name)):false)],
       ...(options.dataset==='bfcl'?{additionalHostOperations:{'bfcl-history':{
         input:'{operation:"bfcl-history", tool:actualExecutedInterfaceName, decision:actualExecutedParsedDecision, value:actualPublicObservation, evidence:sourceLabeledEvidenceString, history:priorMessageArray}',
         output:'{complete:boolean,history:Message[]}: complete is the actual public complete flag, not model text. Replace earlier full BFCL snapshots with the latest cumulative public snapshot; retain tagged errors and append later incremental observations. Does not choose actions, advance turns, invent functions or access private state.',

@@ -1,0 +1,1744 @@
+{
+  "date": "2026-11-08",
+  "purpose": "Engineering validation of real optimizer proposals and native interfaces; not formal Search/Test performance",
+  "formalTest": false,
+  "repeats": 1,
+  "seed": 42,
+  "source": "../output/contract-five-small-20261108-final",
+  "datasets": [
+    {
+      "dataset": "drop",
+      "status": "passed",
+      "sourceSha256": "b2e1ba4709577930c31d7405a9cc3a8f0f6547f0c2260f1b02a795335a508231",
+      "model": "deepseek-flash",
+      "initialization": "manual-seeded",
+      "taskIds": [
+        "drop:7671",
+        "drop:6696",
+        "drop:6103"
+      ],
+      "usage": {
+        "providerCalls": 9,
+        "httpAttempts": 9,
+        "failedAttempts": 0,
+        "inputTokens": 103126,
+        "outputTokens": 3387,
+        "totalTokens": 106513,
+        "unknownUsageAttempts": 0,
+        "inFlight": 0
+      },
+      "attempts": [
+        {
+          "id": "official-0001",
+          "parentId": null,
+          "status": "valid",
+          "score": 1,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 4337,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context"
+              ]
+            }
+          ],
+          "loop": null,
+          "cases": [
+            {
+              "id": "drop:7671#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "22.8",
+              "method": "drop-token-f1-max-alternatives"
+            },
+            {
+              "id": "drop:6696#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "Albanians",
+              "method": "drop-token-f1-max-alternatives"
+            },
+            {
+              "id": "drop:6103#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "1",
+              "method": "drop-token-f1-max-alternatives"
+            }
+          ]
+        },
+        {
+          "id": "official-0002",
+          "parentId": "official-0001",
+          "status": "invalid-proposal",
+          "direction": "interaction",
+          "issues": [
+            {
+              "code": "B_DEFINITION",
+              "path": "/mutation/primaryNodeId",
+              "message": "Multiple additions need mutation.primaryNodeId",
+              "repairHint": "Correct this field to match the supplied declaration guide; preserve unrelated working nodes."
+            }
+          ],
+          "errors": [
+            "/mutation/primaryNodeId: Multiple additions need mutation.primaryNodeId"
+          ],
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "probe",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "context"
+              ],
+              "tool": "bounded_arithmetic",
+              "arguments": {
+                "expression": "100-77.2"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "probe"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "probeText",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "text"
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context",
+                "probeText"
+              ]
+            }
+          ],
+          "loop": null,
+          "addedNodes": [
+            "main/probe",
+            "main/observe",
+            "main/probeText"
+          ],
+          "changedNodes": [
+            "main/solve"
+          ]
+        },
+        {
+          "id": "official-0003",
+          "parentId": "official-0001",
+          "status": "invalid-evaluation",
+          "direction": "interaction",
+          "issues": [
+            {
+              "code": "OFFICIAL_AGENT_CONTRACT",
+              "path": "/graphs/main/nodes/4/input/messages/args/1/1/content",
+              "message": "expected an array",
+              "repairHint": "Correct the named official Agent JSON input, expression or native output path. Preserve the original task, fixed host fields and scorer."
+            }
+          ],
+          "errors": [
+            "expected an array"
+          ],
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "probe",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "context"
+              ],
+              "tool": "bounded_arithmetic",
+              "arguments": {
+                "expression": "100-77.2"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "probe"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "probeText",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "text"
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context",
+                "probeText"
+              ]
+            }
+          ],
+          "loop": null,
+          "addedNodes": [
+            "main/probe",
+            "main/observe",
+            "main/probeText"
+          ],
+          "changedNodes": [
+            "main/solve"
+          ]
+        },
+        {
+          "id": "official-0004",
+          "parentId": "official-0001",
+          "status": "valid",
+          "direction": "interaction",
+          "score": 1,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 4643,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "probe",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "context"
+              ],
+              "tool": "bounded_arithmetic",
+              "arguments": {
+                "expression": "100-77.2"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "probe"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "probeText",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "text"
+            },
+            {
+              "graph": "main",
+              "id": "probeMsg",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "probeText"
+              ],
+              "operation": "concat"
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context",
+                "probeMsg"
+              ]
+            }
+          ],
+          "loop": null,
+          "addedNodes": [
+            "main/probe",
+            "main/observe",
+            "main/probeText",
+            "main/probeMsg"
+          ],
+          "changedNodes": [
+            "main/solve"
+          ],
+          "cases": [
+            {
+              "id": "drop:7671#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "22.8",
+              "method": "drop-token-f1-max-alternatives"
+            },
+            {
+              "id": "drop:6696#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "Albanians",
+              "method": "drop-token-f1-max-alternatives"
+            },
+            {
+              "id": "drop:6103#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "1",
+              "method": "drop-token-f1-max-alternatives"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dataset": "humaneval",
+      "status": "passed",
+      "sourceSha256": "b2e1ba4709577930c31d7405a9cc3a8f0f6547f0c2260f1b02a795335a508231",
+      "model": "deepseek-flash",
+      "initialization": "baseline",
+      "taskIds": [
+        "humaneval:HumanEval/18",
+        "humaneval:HumanEval/15",
+        "humaneval:HumanEval/16"
+      ],
+      "usage": {
+        "providerCalls": 8,
+        "httpAttempts": 8,
+        "failedAttempts": 0,
+        "inputTokens": 55171,
+        "outputTokens": 2885,
+        "totalTokens": 58056,
+        "unknownUsageAttempts": 0,
+        "inFlight": 0
+      },
+      "attempts": [
+        {
+          "id": "official-0001",
+          "parentId": null,
+          "status": "valid",
+          "score": 1,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 1054,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context"
+              ]
+            }
+          ],
+          "loop": null,
+          "cases": [
+            {
+              "id": "humaneval:HumanEval/18#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlaping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n    if not substring:\n        return 0\n    count = 0\n    start = 0\n    while True:\n        idx = string.find(substring, start)\n        if idx == -1:\n            break\n        count += 1\n        start = idx + 1\n    return count\n```",
+              "method": "humaneval-docker-pass-at-1"
+            },
+            {
+              "id": "humaneval:HumanEval/15#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef string_sequence(n: int) -> str:\n    \"\"\" Return a string containing space-delimited numbers starting from 0 upto n inclusive.\n    >>> string_sequence(0)\n    '0'\n    >>> string_sequence(5)\n    '0 1 2 3 4 5'\n    \"\"\"\n    return ' '.join(str(i) for i in range(n + 1))\n```",
+              "method": "humaneval-docker-pass-at-1"
+            },
+            {
+              "id": "humaneval:HumanEval/16#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "## Node artifact\n\n**Function implementation**\n\n```python\ndef count_distinct_characters(string: str) -> int:\n    \"\"\" Given a string, find out how many distinct characters (regardless of case) does it consist of\n    >>> count_distinct_characters('xyzXYZ')\n    3\n    >>> count_distinct_characters('Jerry')\n    4\n    \"\"\"\n    return len(set(string.lower()))\n```\n\n**Verification against the provided doctests (by inspection, not executed):**\n\n- `count_distinct_characters('xyzXYZ')`: `'xyzXYZ'.lower()` → `'xyzxyz'`; set → `{'x','y','z'}`; length → `3`. Matches expected `3`.\n- `count_distinct_characters('Jerry')`: `'Jerry'.lower()` → `'jerry'`; set → `{'j','e','r','y'}`; length → `4`. Matches expected `4`.\n\n**Notes / evidence status**\n\n- The solution is derived from the task specification and the two given examples; no tool execution was performed, so the doctest results above are assessments by inspection rather than observed runtime output.\n- Case-insensitivity is handled via `str.lower()`; distinctness via `set`.",
+              "method": "humaneval-docker-pass-at-1"
+            }
+          ]
+        },
+        {
+          "id": "official-0002",
+          "parentId": "official-0001",
+          "status": "invalid-evaluation",
+          "direction": "interaction",
+          "issues": [
+            {
+              "code": "OFFICIAL_AGENT_CONTRACT",
+              "path": "/graphs/main/nodes/4/input/messages/args/1/0/content",
+              "message": "expected an array",
+              "repairHint": "Correct the named official Agent JSON input, expression or native output path. Preserve the original task, fixed host fields and scorer."
+            }
+          ],
+          "errors": [
+            "expected an array"
+          ],
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "findDoctests",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "context"
+              ],
+              "tool": "literal_text_find",
+              "arguments": {
+                "text": {
+                  "$ref": "input.task.prompt"
+                },
+                "needle": ">>>"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "observeDoctests",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "findDoctests"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "renderEvidence",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observeDoctests"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context",
+                "renderEvidence"
+              ]
+            }
+          ],
+          "loop": null,
+          "addedNodes": [
+            "main/findDoctests",
+            "main/observeDoctests",
+            "main/renderEvidence"
+          ],
+          "changedNodes": [
+            "main/solve"
+          ]
+        },
+        {
+          "id": "official-0003",
+          "parentId": "official-0001",
+          "status": "valid",
+          "direction": "interaction",
+          "score": 1,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 1652,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "findDoctests",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "context"
+              ],
+              "tool": "literal_text_find",
+              "arguments": {
+                "text": {
+                  "$ref": "input.task.prompt"
+                },
+                "needle": ">>>"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "observeDoctests",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "findDoctests"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "renderEvidence",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observeDoctests"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "main",
+              "id": "evidenceMessage",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "renderEvidence"
+              ],
+              "operation": "concat"
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context",
+                "evidenceMessage"
+              ]
+            }
+          ],
+          "loop": null,
+          "addedNodes": [
+            "main/findDoctests",
+            "main/observeDoctests",
+            "main/renderEvidence",
+            "main/evidenceMessage"
+          ],
+          "changedNodes": [
+            "main/solve"
+          ],
+          "cases": [
+            {
+              "id": "humaneval:HumanEval/18#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlaping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n    if not substring:\n        return 0\n    count = 0\n    start = 0\n    while True:\n        idx = string.find(substring, start)\n        if idx == -1:\n            break\n        count += 1\n        start = idx + 1\n    return count\n```",
+              "method": "humaneval-docker-pass-at-1"
+            },
+            {
+              "id": "humaneval:HumanEval/15#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef string_sequence(n: int) -> str:\n    \"\"\" Return a string containing space-delimited numbers starting from 0 upto n inclusive.\n    >>> string_sequence(0)\n    '0'\n    >>> string_sequence(5)\n    '0 1 2 3 4 5'\n    \"\"\"\n    return ' '.join(str(i) for i in range(n + 1))\n```",
+              "method": "humaneval-docker-pass-at-1"
+            },
+            {
+              "id": "humaneval:HumanEval/16#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef count_distinct_characters(string: str) -> int:\n    \"\"\" Given a string, find out how many distinct characters (regardless of case) does it consist of\n    >>> count_distinct_characters('xyzXYZ')\n    3\n    >>> count_distinct_characters('Jerry')\n    4\n    \"\"\"\n    return len(set(string.lower()))\n```",
+              "method": "humaneval-docker-pass-at-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dataset": "mbpp",
+      "status": "passed",
+      "sourceSha256": "b2e1ba4709577930c31d7405a9cc3a8f0f6547f0c2260f1b02a795335a508231",
+      "model": "deepseek-flash",
+      "initialization": "baseline",
+      "taskIds": [
+        "mbpp:295",
+        "mbpp:283",
+        "mbpp:101"
+      ],
+      "usage": {
+        "providerCalls": 7,
+        "httpAttempts": 7,
+        "failedAttempts": 0,
+        "inputTokens": 26643,
+        "outputTokens": 2766,
+        "totalTokens": 29409,
+        "unknownUsageAttempts": 0,
+        "inFlight": 0
+      },
+      "attempts": [
+        {
+          "id": "official-0001",
+          "parentId": null,
+          "status": "valid",
+          "score": 0.6666666666666666,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 1520,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context"
+              ]
+            }
+          ],
+          "loop": null,
+          "cases": [
+            {
+              "id": "mbpp:295#1",
+              "valid": true,
+              "score": 0,
+              "prediction": "Here's a function that returns the sum of all divisors of a number:\n\n```python\ndef sum_div(number):\n    if number <= 0:\n        return 0\n    total = 0\n    i = 1\n    while i * i <= number:\n        if number % i == 0:\n            total += i\n            if i != number // i:\n                total += number // i\n        i += 1\n    return total\n```\n\n**How it works:**\n\n- For each divisor `i` up to `√number`, if `i` divides `number` evenly, both `i` and its paired divisor `number // i` are added to the total.\n- The `i != number // i` check avoids double-counting the square root when `number` is a perfect square.\n- This runs in **O(√n)** time instead of O(n).\n\n**Examples:**\n\n```python\nsum_div(6)   # 1 + 2 + 3 + 6 = 12\nsum_div(12)  # 1 + 2 + 3 + 4 + 6 + 12 = 28\nsum_div(1)   # 1\nsum_div(0)   # 0\n```\n\nNote: This sums **all** divisors, including the number itself. If you instead want the sum of *proper* divisors (excluding the number), subtract `number` from the result.",
+              "method": "mbpp-docker-pass-at-1"
+            },
+            {
+              "id": "mbpp:283#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "## Solution\n\n```python\ndef validate(n):\n    \"\"\"\n    Check whether the frequency of each digit in the integer n\n    is less than or equal to the digit itself.\n\n    Returns True if for every digit d present in n, count(d) <= d,\n    otherwise False.\n    \"\"\"\n    n = abs(n)  # handle negative integers\n    counts = {}\n    for ch in str(n):\n        d = int(ch)\n        counts[d] = counts.get(d, 0) + 1\n    return all(count <= digit for digit, count in counts.items())\n```\n\n### How it works\n\n1. **Normalize sign** — `abs(n)` so a leading `-` isn't treated as a character.\n2. **Count digits** — iterate over the string form of `n`, tallying each digit in a dict.\n3. **Validate** — for every digit `d` with count `c`, require `c <= d`. `all(...)` returns `True` only if every digit satisfies the condition.\n\n### Examples\n\n| Input | Digit counts | Result | Reason |\n|-------|--------------|--------|--------|\n| `1210` | 0→1, 1→2, 2→1 | `True` | 1≤0? No — wait, 0→1 violates 1≤0 → **False** |\n| `221` | 1→1, 2→2 | `True` | 1≤1, 2≤2 |\n| `1234` | each →1 | `True` | 1≤1, 1≤2, 1≤3, 1≤4 |\n| `111` | 1→3 | `False` | 3≤1 is false |\n| `0` | 0→1 | `False` | 1≤0 is false |\n\nNote: `1210` actually returns `False` because digit `0` appears once and `1 <= 0` fails. A clean passing example is `221` or `1234`.\n\n### Edge cases\n\n- **`n = 0`** → count of `0` is 1, and `1 <= 0` is false → returns `False`.\n- **Negative numbers** → sign stripped via `abs`, digits evaluated normally.\n- **Single-digit `d`** → count is 1, so valid only when `d >= 1` (i.e., `1`–`9`).",
+              "method": "mbpp-docker-pass-at-1"
+            },
+            {
+              "id": "mbpp:101#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef kth_element(arr, k):\n    \"\"\"\n    Return the kth element of arr using 1-based indexing.\n\n    Parameters:\n        arr (sequence): The input array (list, tuple, etc.).\n        k (int): 1-based index of the element to retrieve.\n\n    Returns:\n        The element at position k (1-based).\n\n    Raises:\n        IndexError: If k is out of range (k < 1 or k > len(arr)).\n    \"\"\"\n    if k < 1 or k > len(arr):\n        raise IndexError(f\"k={k} is out of range for array of length {len(arr)}\")\n    return arr[k - 1]\n```\n\n**How it works:** 1-based indexing means the first element is at position `1`, so the element at 1-based position `k` lives at 0-based index `k - 1` in the underlying sequence. The bounds check rejects `k < 1` and `k > len(arr)` with an `IndexError`.\n\n**Example:**\n```python\n>>> kth_element([10, 20, 30, 40], 1)\n10\n>>> kth_element([10, 20, 30, 40], 3)\n30\n>>> kth_element([10, 20, 30, 40], 5)\nIndexError: k=5 is out of range for array of length 4\n```",
+              "method": "mbpp-docker-pass-at-1"
+            }
+          ]
+        },
+        {
+          "id": "official-0002",
+          "parentId": "official-0001",
+          "status": "valid",
+          "direction": "interaction",
+          "score": 0.6666666666666666,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 1350,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "context",
+              "type": "CONTEXT.LOAD",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "calc",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": "bounded_arithmetic",
+              "arguments": {
+                "expression": "1+2+3+6"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "calc"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "text"
+            },
+            {
+              "graph": "main",
+              "id": "hint",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "render"
+              ],
+              "operation": "concat"
+            },
+            {
+              "graph": "main",
+              "id": "solve",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "context",
+                "hint"
+              ]
+            }
+          ],
+          "loop": null,
+          "addedNodes": [
+            "main/calc",
+            "main/observe",
+            "main/render",
+            "main/hint"
+          ],
+          "changedNodes": [
+            "main/solve"
+          ],
+          "cases": [
+            {
+              "id": "mbpp:295#1",
+              "valid": true,
+              "score": 0,
+              "prediction": "```python\ndef sum_div(number):\n    if number <= 0:\n        return 0\n    total = 0\n    i = 1\n    while i * i <= number:\n        if number % i == 0:\n            total += i\n            if i != number // i:\n                total += number // i\n        i += 1\n    return total\n```\n\nThis returns the sum of all positive divisors of `number` (including 1 and the number itself). For example, `sum_div(6)` returns `1 + 2 + 3 + 6 = 12`, matching the reference anchor. Non-positive inputs return `0`.",
+              "method": "mbpp-docker-pass-at-1"
+            },
+            {
+              "id": "mbpp:283#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "Here's a Python function that checks whether the frequency of each digit in an integer is less than or equal to the digit itself:\n\n```python\ndef validate(n):\n    # Work with the absolute value so negative numbers are handled sensibly\n    n = abs(n)\n    \n    # Count the frequency of each digit\n    freq = {}\n    for ch in str(n):\n        digit = int(ch)\n        freq[digit] = freq.get(digit, 0) + 1\n    \n    # Check that each digit's frequency is <= the digit itself\n    for digit, count in freq.items():\n        if count > digit:\n            return False\n    return True\n```\n\n**How it works:**\n\n1. `abs(n)` normalizes negative inputs (e.g., `-121` is treated like `121`).\n2. `str(n)` converts the integer to its digit characters, and each is counted in a dictionary `freq`.\n3. For every digit present, we verify `count <= digit`. If any digit appears more times than its own value, return `False`; otherwise `True`.\n\n**Examples:**\n\n| Input | Digit counts | Result | Reason |\n|-------|--------------|--------|--------|\n| `1210` | 1→2, 2→1, 0→1 | `False` | digit `1` appears 2 times (> 1) |\n| `2020` | 2→2, 0→2 | `False` | digit `0` appears 2 times (> 0) |\n| `1234` | each once | `True` | every count (1) ≤ digit |\n| `0` | 0→1 | `False` | digit `0` appears once (> 0) |\n| `7` | 7→1 | `True` | 1 ≤ 7 |\n\n**Note on edge cases:** A single `0` returns `False` because the digit `0` occurs once, which exceeds `0`. If you'd prefer `0` (or any all-zero input) to be treated as valid, you could special-case it, but the strict reading of the rule (\"frequency ≤ digit\") makes `0` invalid.",
+              "method": "mbpp-docker-pass-at-1"
+            },
+            {
+              "id": "mbpp:101#1",
+              "valid": true,
+              "score": 1,
+              "prediction": "```python\ndef kth_element(arr, k):\n    return arr[k - 1]\n```\n\nThis returns the element at 1-based position `k`, i.e. index `k - 1` in the array. It assumes `1 <= k <= len(arr)`; otherwise Python raises `IndexError` (for `k > len(arr)` or `k < 1`).",
+              "method": "mbpp-docker-pass-at-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dataset": "automationbench",
+      "status": "passed",
+      "sourceSha256": "b2e1ba4709577930c31d7405a9cc3a8f0f6547f0c2260f1b02a795335a508231",
+      "model": "deepseek-flash",
+      "initialization": "manual-seeded",
+      "taskIds": [
+        "automationbench:simple.airtable_find_update",
+        "automationbench:simple.weekly_report_sheets_email",
+        "automationbench:simple.asana_dark_mode_from_email"
+      ],
+      "usage": {
+        "providerCalls": 50,
+        "httpAttempts": 59,
+        "failedAttempts": 6,
+        "inputTokens": 249835,
+        "outputTokens": 6586,
+        "totalTokens": 256421,
+        "unknownUsageAttempts": 11,
+        "inFlight": 0
+      },
+      "attempts": [
+        {
+          "id": "official-0001",
+          "parentId": null,
+          "status": "valid",
+          "score": 1,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 77384,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "decide",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": []
+            },
+            {
+              "graph": "main",
+              "id": "decision",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "decide"
+              ],
+              "operation": "decision"
+            },
+            {
+              "graph": "action",
+              "id": "act",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": {
+                "$ref": "input.decision.tool"
+              },
+              "arguments": {
+                "$ref": "input.decision.arguments"
+              }
+            },
+            {
+              "graph": "action",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "act"
+              ]
+            },
+            {
+              "graph": "action",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "action",
+              "id": "history",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe",
+                "render"
+              ],
+              "operation": "tool-history"
+            }
+          ],
+          "loop": {
+            "entry": "decision",
+            "maxIterations": 120,
+            "steps": {
+              "decision": {
+                "graph": "main",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.done"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "action"
+                  }
+                ]
+              },
+              "action": {
+                "graph": "action",
+                "transitions": [
+                  {
+                    "next": "decision"
+                  }
+                ]
+              }
+            }
+          },
+          "cases": [
+            {
+              "id": "automationbench:simple.airtable_find_update#1",
+              "valid": true,
+              "score": 1,
+              "method": "automationbench-official-assertions-v1"
+            },
+            {
+              "id": "automationbench:simple.weekly_report_sheets_email#1",
+              "valid": true,
+              "score": 1,
+              "method": "automationbench-official-assertions-v1"
+            },
+            {
+              "id": "automationbench:simple.asana_dark_mode_from_email#1",
+              "valid": true,
+              "score": 1,
+              "method": "automationbench-official-assertions-v1"
+            }
+          ]
+        },
+        {
+          "id": "official-0002",
+          "parentId": "official-0001",
+          "status": "invalid-evaluation",
+          "direction": "interaction",
+          "issues": [
+            {
+              "code": "OFFICIAL_AGENT_CONTRACT",
+              "path": "/graphs/main/nodes/4/input/messages/args/1/args/1/1/content",
+              "message": "expected an array",
+              "repairHint": "Correct the named official Agent JSON input, expression or native output path. Preserve the original task, fixed host fields and scorer."
+            }
+          ],
+          "errors": [
+            "expected an array"
+          ],
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "taskText",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [],
+              "operation": "text"
+            },
+            {
+              "graph": "main",
+              "id": "serviceHint",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "taskText"
+              ],
+              "tool": "literal_text_find",
+              "arguments": {
+                "text": {
+                  "$ref": "nodes.taskText"
+                },
+                "needle": "airtable"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "serviceObserve",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "serviceHint"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "hintEvidence",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "serviceObserve"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "main",
+              "id": "decide",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "hintEvidence"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "decision",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "decide"
+              ],
+              "operation": "decision"
+            },
+            {
+              "graph": "action",
+              "id": "act",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": {
+                "$ref": "input.decision.tool"
+              },
+              "arguments": {
+                "$ref": "input.decision.arguments"
+              }
+            },
+            {
+              "graph": "action",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "act"
+              ]
+            },
+            {
+              "graph": "action",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "action",
+              "id": "history",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe",
+                "render"
+              ],
+              "operation": "tool-history"
+            }
+          ],
+          "loop": {
+            "entry": "decision",
+            "maxIterations": 120,
+            "steps": {
+              "decision": {
+                "graph": "main",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.done"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "action"
+                  }
+                ]
+              },
+              "action": {
+                "graph": "action",
+                "transitions": [
+                  {
+                    "next": "decision"
+                  }
+                ]
+              }
+            }
+          },
+          "addedNodes": [
+            "main/taskText",
+            "main/serviceHint",
+            "main/serviceObserve",
+            "main/hintEvidence"
+          ],
+          "changedNodes": [
+            "main/decide"
+          ]
+        },
+        {
+          "id": "official-0003",
+          "parentId": "official-0001",
+          "status": "valid",
+          "direction": "interaction",
+          "score": 1,
+          "valid": true,
+          "examples": 3,
+          "totalTokens": 119772,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "taskText",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [],
+              "operation": "text"
+            },
+            {
+              "graph": "main",
+              "id": "serviceHint",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [
+                "taskText"
+              ],
+              "tool": "literal_text_find",
+              "arguments": {
+                "text": {
+                  "$ref": "nodes.taskText"
+                },
+                "needle": "airtable"
+              }
+            },
+            {
+              "graph": "main",
+              "id": "serviceObserve",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "serviceHint"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "hintEvidence",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "serviceObserve"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "main",
+              "id": "hintMessage",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "hintEvidence"
+              ],
+              "operation": "concat"
+            },
+            {
+              "graph": "main",
+              "id": "decide",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": [
+                "hintMessage"
+              ]
+            },
+            {
+              "graph": "main",
+              "id": "decision",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "decide"
+              ],
+              "operation": "decision"
+            },
+            {
+              "graph": "action",
+              "id": "act",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": {
+                "$ref": "input.decision.tool"
+              },
+              "arguments": {
+                "$ref": "input.decision.arguments"
+              }
+            },
+            {
+              "graph": "action",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "act"
+              ]
+            },
+            {
+              "graph": "action",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "action",
+              "id": "history",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe",
+                "render"
+              ],
+              "operation": "tool-history"
+            }
+          ],
+          "loop": {
+            "entry": "decision",
+            "maxIterations": 120,
+            "steps": {
+              "decision": {
+                "graph": "main",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.done"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "action"
+                  }
+                ]
+              },
+              "action": {
+                "graph": "action",
+                "transitions": [
+                  {
+                    "next": "decision"
+                  }
+                ]
+              }
+            }
+          },
+          "addedNodes": [
+            "main/taskText",
+            "main/serviceHint",
+            "main/serviceObserve",
+            "main/hintEvidence",
+            "main/hintMessage"
+          ],
+          "changedNodes": [
+            "main/decide"
+          ],
+          "cases": [
+            {
+              "id": "automationbench:simple.airtable_find_update#1",
+              "valid": true,
+              "score": 1,
+              "method": "automationbench-official-assertions-v1"
+            },
+            {
+              "id": "automationbench:simple.weekly_report_sheets_email#1",
+              "valid": true,
+              "score": 1,
+              "method": "automationbench-official-assertions-v1"
+            },
+            {
+              "id": "automationbench:simple.asana_dark_mode_from_email#1",
+              "valid": true,
+              "score": 1,
+              "method": "automationbench-official-assertions-v1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dataset": "bfcl",
+      "status": "passed",
+      "sourceSha256": "b2e1ba4709577930c31d7405a9cc3a8f0f6547f0c2260f1b02a795335a508231",
+      "model": "deepseek-flash",
+      "initialization": "baseline",
+      "taskIds": [
+        "bfcl:multi_turn_base_44",
+        "bfcl:multi_turn_long_context_106",
+        "bfcl:multi_turn_miss_func_161",
+        "bfcl:multi_turn_miss_param_167"
+      ],
+      "usage": {
+        "providerCalls": 83,
+        "httpAttempts": 87,
+        "failedAttempts": 7,
+        "inputTokens": 923804,
+        "outputTokens": 11120,
+        "totalTokens": 934924,
+        "unknownUsageAttempts": 7,
+        "inFlight": 0
+      },
+      "attempts": [
+        {
+          "id": "official-0001",
+          "parentId": null,
+          "status": "valid",
+          "score": 0.75,
+          "valid": true,
+          "examples": 4,
+          "totalTokens": 436053,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "state",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": "bfcl_state",
+              "arguments": {}
+            },
+            {
+              "graph": "main",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "state"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "decision",
+              "id": "decide",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": []
+            },
+            {
+              "graph": "decision",
+              "id": "decision",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "decide"
+              ],
+              "operation": "decision"
+            },
+            {
+              "graph": "action",
+              "id": "act",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": {
+                "$ref": "input.decision.tool"
+              },
+              "arguments": {
+                "$ref": "input.decision.arguments"
+              }
+            },
+            {
+              "graph": "action",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "act"
+              ]
+            },
+            {
+              "graph": "action",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "action",
+              "id": "history",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe",
+                "render"
+              ],
+              "operation": "bfcl-history"
+            }
+          ],
+          "loop": {
+            "entry": "bootstrap",
+            "maxIterations": 1024,
+            "steps": {
+              "bootstrap": {
+                "graph": "main",
+                "transitions": [
+                  {
+                    "next": "decision"
+                  }
+                ]
+              },
+              "decision": {
+                "graph": "decision",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.done"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "action"
+                  }
+                ]
+              },
+              "action": {
+                "graph": "action",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.complete"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "decision"
+                  }
+                ]
+              }
+            }
+          },
+          "cases": [
+            {
+              "id": "bfcl:multi_turn_base_44#1",
+              "valid": true,
+              "score": 1,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": null
+            },
+            {
+              "id": "bfcl:multi_turn_long_context_106#1",
+              "valid": true,
+              "score": 0,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": "multi_turn:execution_response_mismatch"
+            },
+            {
+              "id": "bfcl:multi_turn_miss_func_161#1",
+              "valid": true,
+              "score": 1,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": null
+            },
+            {
+              "id": "bfcl:multi_turn_miss_param_167#1",
+              "valid": true,
+              "score": 1,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": null
+            }
+          ]
+        },
+        {
+          "id": "official-0002",
+          "parentId": "official-0001",
+          "status": "invalid-proposal",
+          "direction": "interaction",
+          "issues": [
+            {
+              "code": "B_DEFINITION",
+              "path": "/exploration/direction",
+              "message": "Protected direction requires changed INTERACTION.ACT.TOOL, INTERACTION.OBSERVE",
+              "repairHint": "Correct this field to match the supplied declaration guide; preserve unrelated working nodes."
+            }
+          ],
+          "errors": [
+            "/exploration/direction: Protected direction requires changed INTERACTION.ACT.TOOL, INTERACTION.OBSERVE"
+          ],
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "state",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": "bfcl_state",
+              "arguments": {}
+            },
+            {
+              "graph": "main",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "state"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "decision",
+              "id": "decide",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": []
+            },
+            {
+              "graph": "decision",
+              "id": "decision",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "decide"
+              ],
+              "operation": "decision"
+            },
+            {
+              "graph": "action",
+              "id": "act",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": {
+                "$ref": "input.decision.tool"
+              },
+              "arguments": {
+                "$ref": "input.decision.arguments"
+              }
+            },
+            {
+              "graph": "action",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "act"
+              ]
+            },
+            {
+              "graph": "action",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "action",
+              "id": "bounded",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "render"
+              ],
+              "operation": "text"
+            },
+            {
+              "graph": "action",
+              "id": "history",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe",
+                "render",
+                "bounded"
+              ],
+              "operation": "bfcl-history"
+            }
+          ],
+          "loop": {
+            "entry": "bootstrap",
+            "maxIterations": 1024,
+            "steps": {
+              "bootstrap": {
+                "graph": "main",
+                "transitions": [
+                  {
+                    "next": "decision"
+                  }
+                ]
+              },
+              "decision": {
+                "graph": "decision",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.done"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "action"
+                  }
+                ]
+              },
+              "action": {
+                "graph": "action",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.complete"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "decision"
+                  }
+                ]
+              }
+            }
+          },
+          "addedNodes": [
+            "action/bounded"
+          ],
+          "changedNodes": [
+            "action/history"
+          ]
+        },
+        {
+          "id": "official-0003",
+          "parentId": "official-0001",
+          "status": "invalid-proposal",
+          "direction": "interaction",
+          "issues": [
+            {
+              "code": "B_DEFINITION",
+              "path": "/graphs/action/nodes/render",
+              "message": "Declared node output must feed real data/control, not only scheduling",
+              "repairHint": "Correct this field to match the supplied declaration guide; preserve unrelated working nodes."
+            }
+          ],
+          "errors": [
+            "/graphs/action/nodes/render: Declared node output must feed real data/control, not only scheduling"
+          ]
+        },
+        {
+          "id": "official-0004",
+          "parentId": "official-0001",
+          "status": "valid",
+          "direction": "interaction",
+          "score": 0.5,
+          "valid": true,
+          "examples": 4,
+          "totalTokens": 384717,
+          "nodes": [
+            {
+              "graph": "main",
+              "id": "state",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": "bfcl_state",
+              "arguments": {}
+            },
+            {
+              "graph": "main",
+              "id": "render",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "state"
+              ],
+              "operation": "evidence"
+            },
+            {
+              "graph": "decision",
+              "id": "decide",
+              "type": "INFER.REASONING.SAMPLE",
+              "dependsOn": []
+            },
+            {
+              "graph": "decision",
+              "id": "decision",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "decide"
+              ],
+              "operation": "decision"
+            },
+            {
+              "graph": "action",
+              "id": "act",
+              "type": "INTERACTION.ACT.TOOL",
+              "dependsOn": [],
+              "tool": {
+                "$ref": "input.decision.tool"
+              },
+              "arguments": {
+                "$ref": "input.decision.arguments"
+              }
+            },
+            {
+              "graph": "action",
+              "id": "bounded",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "act"
+              ],
+              "operation": "text"
+            },
+            {
+              "graph": "action",
+              "id": "observe",
+              "type": "INTERACTION.OBSERVE",
+              "dependsOn": [
+                "act",
+                "bounded"
+              ]
+            },
+            {
+              "graph": "action",
+              "id": "history",
+              "type": "HOST.DATA.TRANSFORM",
+              "dependsOn": [
+                "observe",
+                "bounded"
+              ],
+              "operation": "bfcl-history"
+            }
+          ],
+          "loop": {
+            "entry": "bootstrap",
+            "maxIterations": 1024,
+            "steps": {
+              "bootstrap": {
+                "graph": "main",
+                "transitions": [
+                  {
+                    "next": "decision"
+                  }
+                ]
+              },
+              "decision": {
+                "graph": "decision",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.done"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "action"
+                  }
+                ]
+              },
+              "action": {
+                "graph": "action",
+                "transitions": [
+                  {
+                    "when": {
+                      "$ref": "result.complete"
+                    },
+                    "end": "completed"
+                  },
+                  {
+                    "next": "decision"
+                  }
+                ]
+              }
+            }
+          },
+          "addedNodes": [
+            "action/bounded"
+          ],
+          "changedNodes": [
+            "action/observe",
+            "action/history"
+          ],
+          "cases": [
+            {
+              "id": "bfcl:multi_turn_base_44#1",
+              "valid": true,
+              "score": 1,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": null
+            },
+            {
+              "id": "bfcl:multi_turn_long_context_106#1",
+              "valid": true,
+              "score": 0,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": "multi_turn:execution_response_mismatch"
+            },
+            {
+              "id": "bfcl:multi_turn_miss_func_161#1",
+              "valid": true,
+              "score": 1,
+              "method": "bfcl-multiturn-family-v1-official-checker",
+              "errorType": null
+            },
+            {
+              "id": "bfcl:multi_turn_miss_param_167#1",
+              "valid": true,
+              "score": 0,
+              "method": "time-budget-exhausted",
+              "timeBudgetOutcome": {
+                "scope": "request",
+                "limitMs": 180000,
+                "elapsedMs": 18420211.9176
+              }
+            }
+          ]
+        }
+      ],
+      "independentRecheck": {
+        "candidateId": "official-0004",
+        "caseId": "bfcl:multi_turn_miss_param_167#1",
+        "reason": "Original request elapsed 18420211.9176ms vs 180000ms limit during host suspension. Preserve original score; this is a separate measurement.",
+        "originalSearchScore": 0.5,
+        "caseScore": 1,
+        "valid": true,
+        "method": "bfcl-multiturn-family-v1-official-checker",
+        "descriptiveMeanWithRecheck": 0.75,
+        "originalSearchStateOverwritten": false,
+        "usage": {
+          "providerCalls": 14,
+          "httpAttempts": 14,
+          "failedAttempts": 0,
+          "inputTokens": 75417,
+          "outputTokens": 840,
+          "totalTokens": 76257,
+          "unknownUsageAttempts": 0,
+          "inFlight": 0
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Small Search subsets, one repeat, one interaction design round; not formal Search/Test scores or proof of improvement.",
+    "Malformed candidates remain recorded and ineligible; successful repairs do not erase failed attempts.",
+    "HTTP 599 recovered within the recorded cumulative budgets. Reported token usage may be a lower bound.",
+    "BFCL original candidate score includes an anomalous host-suspension timeout; the independent frozen-candidate recheck is separately reported, never substituted into Search history.",
+    "Executable graphs can still use irrelevant fixed probes or ineffective worker changes. This smoke does not certify semantic exploration quality or promote its winners to production."
+  ]
+}

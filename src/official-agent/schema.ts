@@ -1,8 +1,10 @@
 import {compileAgent,type AgentDefinition,type AgentNode,type AgentSubgraph} from '@codesoul-co/ditto/runtime';
 import {BASELINE_DEFINITION,validateDefinition as validateLegacy,DefinitionError,digest,NODE_TYPES,type ToolDefinition} from '../graph-agent/schema.js';
 import {dependencyEditBudget} from '../coding/policy.js';
+import {validateOfficialNativeContracts} from './native-validation.js';
 import {DATA_TRANSFORM_NODE} from './helpers.js';
 import type {ExplorationDirection} from '../unified/exploration.js';
+import {validateMutationExplanation} from './proposal-contract.js';
 
 export type OfficialAgentDefinition=AgentDefinition;
 export interface MutationExplanation{primaryNodeId:string;auxiliary:{nodeId:string;reason:string}[]}
@@ -52,12 +54,14 @@ export function validateOfficialDefinition(source:unknown,tools:readonly ToolDef
  check(!deployment?.workers?.some(w=>w.services!==undefined),'Search cannot select service/permission profiles','/deployment/workers');
  const allowedWorkers=new Set(['context','infer','memory','interaction','retrieval','host-data']);
  check(!deployment?.workers?.some(w=>!allowedWorkers.has(w.use)),'Unknown host Worker registration','/deployment/workers');
+ validateOfficialNativeContracts(d);
  return d;
 }
 export function officialArtifactHash(d:AgentDefinition,tools:readonly ToolDefinition[]=[]):string{return digest({definition:d,toolArtifacts:tools});}
 export function expandedOfficialNodes(d:AgentDefinition){const c=compileAgent(d);return Object.entries(c.graphs).flatMap(([graph,g])=>g.tasks.map(n=>({id:`${graph}/${n.id}`,type:String(n.node),dependencies:n.dependencies.map(dep=>`${graph}/${dep}`)})));}
 export function validateOfficialChange(parent:AgentDefinition,child:AgentDefinition,mutation?:MutationExplanation,parentTools:readonly ToolDefinition[]=[],childTools:readonly ToolDefinition[]=[]):void{
  validateOfficialDefinition(child,childTools);
+ if(mutation!==undefined)mutation=validateMutationExplanation(mutation);
  const unique=(id:string)=>[parent,child].every(d=>officialNodes(d).filter(n=>n.node.id===id).length<=1);
  const stable=(d:AgentDefinition)=>officialNodes(d).map(n=>({...n,id:unique(n.node.id)?n.node.id:n.id}));
  const before=stable(parent),after=stable(child),old=new Map(before.map(n=>[n.id,n]));

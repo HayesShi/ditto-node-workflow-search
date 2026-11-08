@@ -28,6 +28,18 @@ test('official compiler executes a native SAMPLE with host messages and real usa
  assert.equal(result.sourceMap.main!.solve!.nodeId,'solve');assert.equal(result.rawNodeOutputs['main/solve'].output.message.content,'42');
 });
 
+test('host rejects provider-incompatible message content with a public field path before any paid call',async()=>{
+ for(const content of [['plain string array'],{unexpected:'JSON object'},42]){
+  const definition=base();definition.graphs.main.nodes[0].input.messages={$op:'concat',args:[ref('input.host.messages'),[{role:'user',content}]]};
+  let calls=0;
+  await assert.rejects(execute(definition,()=>{calls++;throw Error('Provider must not be called');}),(error:any)=>error instanceof OfficialAgentContractError&&/\/input\/messages\/2\/content/.test(error.publicIssue.path)&&/HOST.DATA.TRANSFORM/.test(error.publicMessage));
+  assert.equal(calls,0);
+ }
+ const definition=base();definition.graphs.main.nodes[0].input.messages={$op:'concat',args:[ref('input.host.messages'),[{role:'user',content:[{type:'text',text:'Public evidence'}]}]]};
+ const {result,calls}=await execute(definition);assert.equal(result.answer,'42');assert.equal(calls.length,1);
+ assert.deepEqual(calls[0].messages[2].content,[{type:'text',text:'Public evidence'}]);
+});
+
 test('optional first-task presentation happens once per attempt and final contract follows user strategy',async()=>{
  const definition=base();definition.config={firstTaskRepeat:true};definition.graphs.main.nodes[0].input.messages={$op:'concat',args:[ref('input.host.messages'),[{role:'user',content:'An editable user strategy.'}]]};
  definition.loop={entry:'again',maxIterations:2,state:{round:0,result:''},steps:{again:{graph:'main',input:ref('input'),assign:{round:{$op:'add',args:[ref('state.round'),1]},result:ref('result')},transitions:[{when:{$op:'gte',args:[ref('state.round'),2]},end:'completed'},{next:'again'}]}},output:ref('state.result')};
