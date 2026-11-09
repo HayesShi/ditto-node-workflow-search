@@ -3,12 +3,15 @@ import {createHash} from 'node:crypto';
 import {BindingContractError,ModelOutputFormatError} from '../graph-agent/bindings.js';
 import {progressHistory,layeredHistory,type ToolProgressTracker} from './progress.js';
 import {automationDecisionAttempt} from './decision-protocol.js';
+import {automationReview,automationReviewFeedback} from './automation-review.js';
 
 export const DATA_TRANSFORM_NODE='HOST.DATA.TRANSFORM';
 /** Trusted data primitives absent from the official expression language. No Graph/Loop scheduling or executable candidate text. */
 export function transformOfficialData(input:any,progress?:ToolProgressTracker):any{
  const value=input?.value;
  switch(input?.operation){
+  case'automation-review':return automationReview(input,progress);
+  case'automation-review-feedback':return automationReviewFeedback(input);
   case'json':return JSON.stringify(value);
   case'text':return typeof value==='string'?value:JSON.stringify(value);
   case'parse':{

@@ -24,7 +24,12 @@ for(const name of ['baseline-fixed','layered']){
    if(output?.protocol)protocols.push({valid:output.valid,...output.protocol});
    if(output?.evidence&&output?.progress)evidence=output.evidence;
    if(output?.done===false&&typeof output.tool==='string')pending={tool:output.tool,arguments:output.arguments};
-   if(output?.callId&&typeof output.source==='string'&&Object.hasOwn(output,'content')){actions.push({index:actions.length+1,decision:pending,status:output.status,response:parse(output.content)});pending=undefined;}
+   if(output?.callId&&typeof output.source==='string'&&Object.hasOwn(output,'content')){actions.push({index:actions.length+1,decision:event.graphId==='inspect'?undefined:pending,source:output.source,origin:event.graphId==='inspect'?'framework-read-only-inspection':'actor',status:output.status,response:parse(output.content)});pending=undefined;}
+   // The history transform retains the exact actually executed command. Actor
+   // proposals may have been deferred while a framework inspection was executed.
+   if(event.nodeId==='history'&&Array.isArray(output?.history)&&actions.length){
+    try{const executed=JSON.parse(output.history.at(-2)?.content),action=actions.at(-1);if(executed.done===false&&executed.tool===action.source&&executed.arguments)action.decision={tool:executed.tool,arguments:executed.arguments};}catch{/* retain an unknown command rather than inventing one */}
+   }
   }
   return{caseId:row.caseId,taskId,valid:row.valid===true,score:row.valid===true?row.score:null,question:tasks.get(taskId)?.prompt,actorCalls:decisions.length,auditCalls:reviews.length,auditExhausted:(run?.events??[]).some(e=>e.graphId==='progress-exhausted'),totalTokens:row.totalTokens,latencyMs:row.latencyMs,usageStatus:row.tokenUsageStatus,actions,reviews,protocols,evidence,finalModelOutput:decisions.at(-1)?.content,modelFailure:run?.modelFailure};
  });

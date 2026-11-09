@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {BindingContractError} from '../graph-agent/bindings.js';
 import {createExecutionEvidence} from './execution-evidence.js';
+import {createMutationInspector} from './mutation-inspection.js';
 
 export const TOOL_PROGRESS_VERSION='actual-tool-progress-v2';
 type Call={name:string;arguments:Record<string,unknown>};
@@ -36,11 +37,13 @@ export interface ToolProgressTracker {
  record(call:Call,result:unknown):void;
  latest(call:Call):ToolProgress;
  evidence():ReturnType<ReturnType<typeof createExecutionEvidence>['snapshot']>;
+ inspection(call:Call):ReturnType<ReturnType<typeof createMutationInspector>['next']>;
+ followup():ReturnType<ReturnType<typeof createMutationInspector>['followup']>;
 }
 /** Created by the host once per task. Reading/forging candidate history cannot increment it. */
 export function createToolProgressTracker():ToolProgressTracker{
  let sequence=0,previous:ToolProgress|undefined,lastCallHash:string|undefined;
- const evidence=createExecutionEvidence(),seenObservations=new Set<string>();
+ const evidence=createExecutionEvidence(),inspector=createMutationInspector(),seenObservations=new Set<string>();
  return{
   record(call,result){
    const failure=publicError(result),groupId=hash([requestIdentity(call),failure]);
@@ -55,6 +58,7 @@ export function createToolProgressTracker():ToolProgressTracker{
    const consecutiveUnchangedObservations=seenObservations.has(observationKey)?(previous?.consecutiveUnchangedObservations??0)+1:0;
    seenObservations.add(observationKey);
    evidence.record(call,result,failure!==null);
+   inspector.record(call,result,failure!==null);
    previous={version:TOOL_PROGRESS_VERSION,observationIndex:++sequence,groupId,businessError:failure!==null,
     consecutiveEquivalentFailures:failure===null?0:previous?.businessError&&previous.groupId===groupId?previous.consecutiveEquivalentFailures+1:1,
     consecutiveUnchangedObservations,
@@ -66,6 +70,8 @@ export function createToolProgressTracker():ToolProgressTracker{
    return structuredClone(previous);
   },
   evidence:()=>evidence.snapshot(),
+  inspection:call=>inspector.next(call),
+  followup:()=>inspector.followup(),
  };
 }
 
@@ -73,8 +79,10 @@ export function createToolProgressTracker():ToolProgressTracker{
 export function layeredHistory(input:any,tracker:ToolProgressTracker|undefined){
  const result=progressHistory(input,tracker);
  result.progress.stalled ||= result.progress.consecutiveUnchangedObservations>=(input.progressThreshold??2);
+ result.progress.stalled ||= tracker!.evidence().latestReadbackConflict;
  if(!result.progress.businessError)result.history[result.history.length-1]={role:'user',content:input.evidence};
- return{...result,evidence:tracker!.evidence()};
+ const inspection=tracker!.followup();
+ return{...result,evidence:tracker!.evidence(),requiresInspection:inspection!==null,inspection};
 }
 
 export function progressHistory(input:any,tracker:ToolProgressTracker|undefined){

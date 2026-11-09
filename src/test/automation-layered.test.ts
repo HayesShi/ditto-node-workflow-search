@@ -35,7 +35,7 @@ test('opaque mutation receipts are uncertainty signals; actual readbacks establi
  evidence.record({name:'api_fetch',arguments:{method:'GET',url:action.arguments.url}},{content:'{"title":"Old"}'},false);
  assert.equal(evidence.snapshot().effects[0]?.status,'conflicting');assert.deepEqual(evidence.snapshot().effects[0]?.mismatchedFields,['title']);
  evidence.record({name:'api_fetch',arguments:{method:'GET',url:action.arguments.url}},{content:'{"title":"Updated"}'},false);
- assert.equal(evidence.snapshot().effects[0]?.status,'witnessed');assert.equal(evidence.snapshot().reviewRecommended,false);
+ assert.equal(evidence.snapshot().effects[0]?.status,'witnessed');assert.equal(evidence.snapshot().reviewRecommended,true,'completion also checks whether the chosen fields satisfy the task');
  evidence.record(call,{content:'{"error":{"code":404}}'},true);assert.equal(evidence.snapshot().reviewRecommended,true);
  assert.equal(createExecutionEvidence().snapshot().reviewRecommended,false,'task state is isolated');
 });
@@ -94,28 +94,30 @@ async function integration(responses:string[],observation:any){
    audits++;assert.equal(systems[1],REFLECTION_SYSTEM_CONTRACT);
    const payload=JSON.parse(String(input.messages.at(-1)?.content));
    assert(payload.messages.some((m:any)=>m.content===(officialBaseline('automationbench').config as any).strategy));
-   if(payload.context[0].content.effects.length)assert.equal(payload.context[0].content.effects[0].status,'unverified');
+   assert.match(payload.context[0].content.targetSource,/actor-control-decision/);
+   const evidence=payload.context[0].content.actualExecution;
+   if(JSON.stringify(observation)==='{}'&&evidence.operationsWithoutResourceRead?.length)assert.deepEqual(evidence.operationsWithoutResourceRead[0].content,{},'an empty acknowledgment is retained without fabricating field verification');
   }else{assert.deepEqual(systems,[NODE_SYSTEM_PROMPT]);assert(actors<responses.length);}
   return{message:{role:'assistant',content:review?JSON.stringify({assessment:{passed:true,summary:'The actual observed action is consistent with this task.'},issues:[]}):responses[actors++]!},finishReason:'stop',usage:{inputTokens:2,outputTokens:1,totalTokens:3}};
  }}});
- try{const run=await automationScope.run(world,()=>runOfficialAgent(automationLayeredController(),task,runtime,settings));return{run,actors,audits,actions};}finally{await runtime.close();}
+ try{const run=await automationScope.run(world,()=>runOfficialAgent(automationLayeredController({inspectMutations:false}),task,runtime,settings));return{run,actors,audits,actions};}finally{await runtime.close();}
 }
 
 test('protocol failure returns evidence for one same-contract retry without executing a malformed action',async()=>{
  const value=await integration(['Not a decision',JSON.stringify(action),JSON.stringify(done)],{title:'Updated'});
- assert.equal(value.run.modelFailure,undefined);assert.equal(value.actions,1);assert.equal(value.actors,3);assert.equal(value.audits,0);
+ assert.equal(value.run.modelFailure,undefined);assert.equal(value.actions,1);assert.equal(value.actors,3);assert.equal(value.audits,1);
  assert.equal(value.run.state.protocolFailures,1);assert(value.run.trace.some(e=>(e.output as any)?.protocol?.rawContent==='Not a decision'));
  const exhausted=await integration(['Invalid response','Still invalid'],{});
  assert.equal(exhausted.run.modelFailure?.code,'MODEL_OUTPUT_FORMAT');assert.equal(exhausted.actions,0);assert.equal(exhausted.actors,2);
 });
 
-test('only uncertain execution evidence triggers completion review; a substantive successful observation does not',async()=>{
+test('completion review also checks substantive successful writes',async()=>{
  const certain=await integration([JSON.stringify(action),JSON.stringify(done)],{title:'Updated'});
- assert.equal(certain.run.modelFailure,undefined);assert.equal(certain.audits,0);
+ assert.equal(certain.run.modelFailure,undefined);assert.equal(certain.audits,1);
  const uncertain=await integration([JSON.stringify(action),JSON.stringify(done)],{});
  assert.equal(uncertain.run.modelFailure,undefined);assert.equal(uncertain.audits,1);
  const converted=await integration([dsml('api_fetch',param('arguments',JSON.stringify(action.arguments),true)),JSON.stringify(done)],{title:'Updated'});
- assert.equal(converted.run.modelFailure,undefined);assert.equal(converted.actions,1);assert.equal(converted.audits,0);
+ assert.equal(converted.run.modelFailure,undefined);assert.equal(converted.actions,1);assert.equal(converted.audits,1);
 });
 
 test('unchanged successful reads trigger a standard review before the outer Loop is exhausted',async()=>{

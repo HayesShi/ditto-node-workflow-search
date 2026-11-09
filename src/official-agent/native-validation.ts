@@ -1,6 +1,6 @@
 import type {AgentDefinition,AgentNode} from '@codesoul-co/ditto/runtime';
 import {DefinitionError} from '../graph-agent/schema.js';
-import {NATIVE_CONTRACTS,HOST_INFER_MESSAGES_SCHEMA,PROGRESS_HISTORY_SCHEMA,LAYERED_HISTORY_SCHEMA,DECISION_ATTEMPT_SCHEMA} from './native-contracts.js';
+import {NATIVE_CONTRACTS,HOST_INFER_MESSAGES_SCHEMA,PROGRESS_HISTORY_SCHEMA,LAYERED_HISTORY_SCHEMA,DECISION_ATTEMPT_SCHEMA,AUTOMATION_REVIEW_SCHEMA,AUTOMATION_REVIEW_FEEDBACK_SCHEMA} from './native-contracts.js';
 import {STANDARD_TOOL_CONTRACTS} from './tool-contracts.js';
 
 type Shape=Record<string,any>;
@@ -51,6 +51,8 @@ function helperOutput(node:AgentNode):Shape|undefined {
  if(operation==='memory-ids')return{type:'array',items:{type:'string'}};
  if(operation==='decision')return{type:'object',properties:{done:{type:'boolean'},tool:{type:'string'},arguments:{type:'object'},finalAnswer:{type:'string'}},additionalProperties:false};
  if(operation==='decision-attempt')return DECISION_ATTEMPT_SCHEMA;
+ if(operation==='automation-review')return AUTOMATION_REVIEW_SCHEMA;
+ if(operation==='automation-review-feedback')return AUTOMATION_REVIEW_FEEDBACK_SCHEMA;
  if(operation==='tool-history-progress')return PROGRESS_HISTORY_SCHEMA;
  if(operation==='tool-history-layered')return LAYERED_HISTORY_SCHEMA;
  if(['bfcl-history','tool-history'].includes(operation))return{type:'object',properties:{complete:{type:'boolean'},history:{type:'array',items:{type:'object'}}},additionalProperties:false};
