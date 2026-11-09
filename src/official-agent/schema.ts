@@ -40,7 +40,7 @@ export function validateOfficialDefinition(source:unknown,tools:readonly ToolDef
    for(const field of ['model','generation'])check(input[field]===undefined||digest(input[field])===digest({$ref:`input.host.${field}`}),`${field} must use the immutable host reference`,`/graphs/${graph}/nodes/${node.id}/input/${field}`);
   }
   const input=node.input as any;
-  if(node.type===DATA_TRANSFORM_NODE&&(input?.sourceKind==='model-json'||input?.operation==='decision')){
+  if(node.type===DATA_TRANSFORM_NODE&&(input?.sourceKind==='model-json'||['decision','decision-attempt'].includes(input?.operation))){
    const ref=input?.value?.$ref,match=typeof ref==='string'?/^nodes\.([^.]+)\.output\.(message|result)\.content$/.exec(ref):null;
    const producer=match?d.graphs[graph]?.nodes.find(n=>n.id===match[1]):undefined;
    check(producer&&'type'in producer&&producer.type.startsWith('INFER.REASONING.')&&node.dependsOn?.includes(producer.id),'Model-format classification requires direct native Infer content and an explicit dependency',`/graphs/${graph}/nodes/${node.id}/input/value`);

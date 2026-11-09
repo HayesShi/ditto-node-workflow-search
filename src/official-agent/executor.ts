@@ -19,12 +19,13 @@ import {ModelOutputFormatError} from '../graph-agent/bindings.js';
 import type {GraphAgentResult,ModelResponseRecord} from '../graph-agent/executor.js';
 import {createTaskRetrieval} from '../graph-agent/retrieval.js';
 import {NODE_SYSTEM_PROMPT,NODE_SYSTEM_VERSION} from '../graph-agent/system.js';
-import {automationScope} from '../benchmark/automation.js';
+import {automationScope,AUTOMATION_TOOLS} from '../benchmark/automation.js';
 import {createAutomationTools} from '../ditto/automation-tools.js';
 import {bfclScope,BFCL_GUIDE} from '../benchmark/bfcl.js';
 import {createBfclTools} from '../ditto/bfcl-tools.js';
 import {AutomationActorBudgetExceeded} from '../execution/automation-budget.js';
 import {createOfficialDataWorker} from './helpers.js';
+import {createToolProgressTracker} from './progress.js';
 import {HOST_INFER_MESSAGES_SCHEMA} from './native-contracts.js';
 import {validateNativeLiteral} from './native-validation.js';
 import {DefinitionError} from '../graph-agent/schema.js';
@@ -101,7 +102,8 @@ export async function runOfficialAgent(definition:AgentDefinition,task:Benchmark
    return response;
   }catch(error){providerFault=error;throw error;}
  }};
- const scoped=createExperimentRuntime(settings,{provider:recordingProvider,managedProvider:true,tools:[...standard,...createAutomationTools(),...createBfclTools(),...(options.tools??[])],workers:[retrieval.worker,createOfficialDataWorker(),...(options.workers??[])],memory:createTaskMemory(),reflectionEvent:async event=>{
+ const progress=createToolProgressTracker();
+ const scoped=createExperimentRuntime(settings,{provider:recordingProvider,managedProvider:true,tools:[...standard,...createAutomationTools(),...createBfclTools(),...(options.tools??[])],workers:[retrieval.worker,createOfficialDataWorker(progress),...(options.workers??[])],memory:createTaskMemory(),reflectionEvent:async event=>{
   if(event.outcome==='exhausted')exhaustedReflections.set(String(event.nodeId),event.error??'Model reflection did not satisfy its fixed response contract');
   await shared.reflectionEvent?.(event);
  }});
@@ -158,6 +160,10 @@ export async function runOfficialAgent(definition:AgentDefinition,task:Benchmark
  const complete=(event:CapabilityCompletion):unknown=>{
   const nodeId=key(event),type=String(event.nodeType),raw=event.output as any;
   rawNodeOutputs[nodeId]=structuredClone(raw);executedNodeIds.push(nodeId);trace.push({graphId:event.graphId,nodeId:event.nodeId,output:structuredClone(raw)});
+  if(automation&&type==='INTERACTION.ACT.TOOL'){
+   const call=nodeInputs[nodeId]?.call;
+   if(call&&(AUTOMATION_TOOLS as readonly string[]).includes(call.name))progress.record(call,raw);
+  }
   if(type.startsWith('INTERACTION.')){
    try{automation?.assertHealthy();bfcl?.assertHealthy();}catch(error){throw Object.assign(error instanceof Error?error:new Error(String(error)),{infrastructureFailure:true});}
   }

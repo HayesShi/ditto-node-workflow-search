@@ -13,6 +13,7 @@ import { currentEvaluationCaseId, evaluateTasks } from "./evaluator.js";
 import { searchSubset } from "./search-subset.js";
 import {currentTimeBudgetSignal,recordTimeBudgetInfrastructureFailure} from '../execution/time-budget.js';
 import { requireRecord, requireString, sha256File } from "./io.js";
+import {automationCompatibility,compatibleAutomationCatalog} from './automation-compat.js';
 import type { BenchmarkAdapter, BenchmarkEvaluationOptions, BenchmarkLoadOptions, BenchmarkRunner, LoadedBenchmark } from "./types.js";
 
 export const AUTOMATION_TOOLS = ["api_search", "api_fetch", "base64_encode"] as const;
@@ -38,6 +39,7 @@ interface SavedExecution { readonly taskId:string;readonly caseId:string;readonl
 
 /** Verify the bytes actually executed and fingerprint the official scoring environment. */
 export async function automationIdentity() {
+  const compatibility=automationCompatibility();
   const sourceRoot = resolve(process.env.DITTO_AUTOMATION_ROOT ?? "../AutomationBench-source");
   const python = process.env.DITTO_AUTOMATION_PYTHON ?? "python";
   const execute = promisify(execFile);
@@ -53,7 +55,7 @@ export async function automationIdentity() {
     protocol: "automationbench-public-simple-v1",
     source: Object.freeze({ revision, uvLockSha256, trackedSourceClean: true }),
     environment: Object.freeze({ ...environment, packages: Object.freeze(environment.packages.map((entry) => Object.freeze(entry))), sha256: createHash("sha256").update(JSON.stringify(environment)).digest("hex") }),
-    bridge: Object.freeze({ sha256: await sha256File(fileURLToPath(new URL("../../scripts/automation_bridge.py", import.meta.url))), mflowOriginalSha256: "42fb7e9611e0d4834e02440c9c6619901d084bc210f2186df9fdfbcb650549cd", change: "api_search derived index cache relocated outside the source checkout" }),
+    bridge: Object.freeze({ sha256: await sha256File(fileURLToPath(new URL("../../scripts/automation_bridge.py", import.meta.url))), mflowOriginalSha256: "42fb7e9611e0d4834e02440c9c6619901d084bc210f2186df9fdfbcb650549cd", change: "api_search derived index cache relocated outside the source checkout", compatibility, compatibilitySha256:await sha256File(fileURLToPath(new URL('automation-compat.js',import.meta.url))) }),
     scorer: Object.freeze({ module: "automationbench.rubric", functions: Object.freeze(["partial_credit", "task_completed_correctly"]), strictAssertions: true, snapshotContractChecked: true }),
   });
 }
@@ -152,6 +154,7 @@ export class OfficialAutomationSession implements AutomationSession {
   // Only endpoint contracts already returned by this world's public api_search
   // may reject a misplaced path parameter. Unknown endpoints remain official calls.
   readonly #publicEndpoints = new Map<string, PublicEndpoint>();
+  readonly #compatibility=automationCompatibility();
   constructor(readonly bridge: AutomationBridge, readonly id: string, readonly taskId: string, readonly contract: string, readonly tools: ActionDescriptor[]) {}
   record(entry: Readonly<Record<string, unknown>>): void { this.trace.push(Object.freeze({ at: new Date().toISOString(), ...structuredClone(entry) })); }
   assertHealthy(): void { if(this.#closed)throw new Error('Automation task world is closed');if (this.#failure) throw this.#failure; this.bridge.assertHealthy(); }
@@ -167,6 +170,11 @@ export class OfficialAutomationSession implements AutomationSession {
     try {
       const result = await this.bridge.request<{ content: unknown }>({ op: "call", session: this.id, name, arguments: args },currentTimeBudgetSignal());
       const response = { content: typeof result.content === "string" ? result.content : JSON.stringify(result.content) };
+      if(name==='api_search'){
+        const repaired=compatibleAutomationCatalog(response.content,this.#compatibility);
+        if(repaired.corrections.length)this.record({type:'public-api-contract-correction',mode:this.#compatibility,corrections:repaired.corrections,originalContent:response.content});
+        response.content=repaired.content;
+      }
       if (name === "api_search") for (const endpoint of publicEndpoints(response.content)) {
         this.#publicEndpoints.set(`${endpoint.method} ${endpoint.url}`, endpoint);
       }

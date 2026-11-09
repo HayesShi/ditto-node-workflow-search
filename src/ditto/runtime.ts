@@ -51,7 +51,7 @@ export interface ProviderInvocationEvent {
 
 /** Keep application control keys out of Ditto 0.1.5's strict native env namespace. */
 export function experimentRuntimeConfig(env:NodeJS.ProcessEnv=process.env){
-  const appKeys=new Set(['DITTO_PROVIDER_PYTHON','DITTO_PROVIDER_LOG','DITTO_SEARCH_CONCURRENCY','DITTO_TEST_CONCURRENCY','DITTO_AUTOMATION_ROOT','DITTO_AUTOMATION_PYTHON','DITTO_AUTOMATION_DATA','DITTO_BFCL_ROOT','DITTO_BFCL_PYTHON','DITTO_OPTIMIZER_PROFILE']);
+  const appKeys=new Set(['DITTO_PROVIDER_PYTHON','DITTO_PROVIDER_LOG','DITTO_SEARCH_CONCURRENCY','DITTO_TEST_CONCURRENCY','DITTO_AUTOMATION_ROOT','DITTO_AUTOMATION_PYTHON','DITTO_AUTOMATION_DATA','DITTO_AUTOMATION_COMPAT','DITTO_BFCL_ROOT','DITTO_BFCL_PYTHON','DITTO_OPTIMIZER_PROFILE']);
   const nativeEnv=Object.fromEntries(Object.entries(env).filter(([key])=>!appKeys.has(key)));
   try{return loadRuntimeConfigFile('ditto.yaml',nativeEnv);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;return loadRuntimeConfig(nativeEnv);}
 }

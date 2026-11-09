@@ -1,10 +1,12 @@
 import {defineWorker,type WorkerNodes} from '@codesoul-co/ditto/worker';
 import {createHash} from 'node:crypto';
 import {BindingContractError,ModelOutputFormatError} from '../graph-agent/bindings.js';
+import {progressHistory,layeredHistory,type ToolProgressTracker} from './progress.js';
+import {automationDecisionAttempt} from './decision-protocol.js';
 
 export const DATA_TRANSFORM_NODE='HOST.DATA.TRANSFORM';
 /** Trusted data primitives absent from the official expression language. No Graph/Loop scheduling or executable candidate text. */
-export function transformOfficialData(input:any):any{
+export function transformOfficialData(input:any,progress?:ToolProgressTracker):any{
  const value=input?.value;
  switch(input?.operation){
   case'json':return JSON.stringify(value);
@@ -22,14 +24,24 @@ export function transformOfficialData(input:any):any{
    if(d.done&&d.tool!==''||!d.done&&(!Array.isArray(input.allowedTools)||!input.allowedTools.includes(d.tool)))throw new ModelOutputFormatError('Decision tool is not a permitted official tool (empty when done)');
    return{done:d.done,tool:d.tool,arguments:d.arguments,finalAnswer:typeof d.finalAnswer==='string'?d.finalAnswer:'End of declared agent execution.'};
   }
+  case'decision-attempt':{
+   if(!Array.isArray(input.allowedTools)||input.allowedTools.some((tool:unknown)=>typeof tool!=='string'))throw new BindingContractError('Decision attempt requires registered tool names');
+   const prior=input.protocolFailures??0,maximum=input.maxProtocolFailures??2;
+   if(!Number.isSafeInteger(prior)||prior<0||!Number.isSafeInteger(maximum)||maximum<1||maximum>3)throw new BindingContractError('Invalid protocol recovery budget');
+   const result=automationDecisionAttempt(value,input.allowedTools);
+   if(!result.valid&&prior>=maximum-1)throw new ModelOutputFormatError('Decision protocol recovery exhausted: '+result.protocol.error!.message);
+   return result;
+  }
   case'concat':if(!Array.isArray(value)||value.some(v=>v!==null&&typeof v==='object'))throw new BindingContractError('Text concat requires scalar array');return value.map(v=>v==null?'':String(v)).join('');
   case'memory-ids':{const records=Array.isArray(value)?value:value?.items;if(!Array.isArray(records))throw new BindingContractError('Memory ID projection requires records');return records.map((v:any)=>v.id??v.memory?.id);}
   case'coalesce':if(!Array.isArray(value))throw new BindingContractError('Coalesce requires array');return value.find(v=>v!==null&&v!==undefined)??null;
-  case'tool-history':{
+  case'tool-history':case'tool-history-progress':case'tool-history-layered':{
    const decision=input.decision;
    if(!Array.isArray(input.history)||typeof input.evidence!=='string'||!value||typeof value!=='object'||Array.isArray(value)||value.source!==input.tool||!value.message||!['success','failed','cancelled','timeout','unknown'].includes(value.status))throw new BindingContractError('Tool history requires native observation, source-labeled evidence and prior message history');
    if(!decision||decision.done!==false||decision.tool!==input.tool||!decision.arguments||typeof decision.arguments!=='object'||Array.isArray(decision.arguments))throw new BindingContractError('Tool history decision must identify the actually invoked interface and object arguments');
    const executedDecision={done:false,tool:decision.tool,arguments:structuredClone(decision.arguments)};
+   if(input.operation==='tool-history-progress')return progressHistory(input,progress);
+   if(input.operation==='tool-history-layered')return layeredHistory(input,progress);
    // Tool transport status and business response text are evidence, never task-completion signals.
    return{complete:false,history:[...input.history,{role:'assistant',content:JSON.stringify(executedDecision),metadata:{toolExecutedDecision:true}},{role:'user',content:input.evidence}]};
   }
@@ -57,4 +69,4 @@ export function transformOfficialData(input:any):any{
   default:throw new BindingContractError('Unknown HOST.DATA.TRANSFORM operation');
  }
 }
-export function createOfficialDataWorker(){return defineWorker({type:'host-data',nodes:{[DATA_TRANSFORM_NODE]:async(input:unknown)=>transformOfficialData(input)} as WorkerNodes});}
+export function createOfficialDataWorker(progress?:ToolProgressTracker){return defineWorker({type:'host-data',nodes:{[DATA_TRANSFORM_NODE]:async(input:unknown)=>transformOfficialData(input,progress)} as WorkerNodes});}
