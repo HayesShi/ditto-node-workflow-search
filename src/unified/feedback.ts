@@ -90,9 +90,7 @@ export function buildUnifiedFeedback(history:readonly FeedbackRecord[],tasks:rea
   const taskMap=new Map(tasks.map(task=>[task.id,task])),byId=new Map(history.map(row=>[row.id,row]));
   const ranked=history.filter(row=>row.status==='valid').sort((a,b)=>(b.evaluation?.score??0)-(a.evaluation?.score??0));
   const chosen=[...new Map([...history.slice(-Math.max(1,maxCandidates-4)),...ranked.slice(0,Math.min(4,maxCandidates))].map(row=>[row.id,row])).values()].slice(-maxCandidates);
-  const chosenIds=new Set(chosen.map(row=>row.id));
-  const candidateFeedback:Record<string,unknown>[]=[];
-  for(const record of chosen){
+  const assembled=chosen.map(record=>{
     const rows=validRows(record,taskMap),reference=record.parentId?byId.get(record.parentId):undefined;
     const prior=reference?validRows(reference,taskMap):new Map<string,CaseResult>();
     const common=[...rows.values()].filter(row=>prior.has(row.caseId));
@@ -130,14 +128,64 @@ export function buildUnifiedFeedback(history:readonly FeedbackRecord[],tasks:rea
       engineering:{publicContractErrors:(record.publicErrors??[]).slice(-5).map(message=>clipped(message,700)),
         contractIssues:(record.publicIssues??[]).slice(-5).map(issue=>({code:issue.code,path:issue.path,message:clipped(issue.message,700),repairHint:clipped(issue.repairHint,700)})),
         issues:(evaluation?.engineeringIssues??[]).slice(0,5).map(issue=>({code:issue.code,message:clipped(issue.message,700)}))},
-      truncation:{casesOmitted:Math.max(0,cases.length-selected.length),traceCaseLimit:3},
+      truncation:{casesOmitted:Math.max(0,cases.length-selected.length),traceCaseLimit:3,budgetClipped:false},
     };
-    // Mark entire omitted candidates instead of silently leaking unbounded trace/context.
-    if(JSON.stringify(candidateFeedback).length+JSON.stringify(feedback).length>maxCharacters)break;
-    candidateFeedback.push(feedback);
+    return feedback;
+  });
+  type Feedback=typeof assembled[number];
+  type Snippet=ReturnType<typeof clipped>;
+  const resize=(part:Snippet,limit:number,preserveTail=false):Snippet=>{
+    const shortened=preserveTail?promptSnippet(part.text,limit):clipped(part.text,limit);
+    return{...shortened,originalLength:part.originalLength,truncated:part.truncated||shortened.truncated};
+  };
+  // The envelope, including omission metadata, shares the same hard character cap.
+  const packet=(feedback:readonly Feedback[])=>{
+    const included=new Set(feedback.map(row=>row.id)),omitted=history.filter(row=>!included.has(row.id));
+    const listed=omitted.slice(0,Math.min(64,Math.floor(maxCharacters/600)));
+    return{source:'public-field-whitelist-v3',scoreInterpretation:'Scores and parentOutcome are measured candidate outputs, not reference answers. A low text-F1 score does not identify a reasoning error. Check the actual computation and requested answer type; contract warnings are observable hints, not gold-derived root-cause labels.',
+      candidateCount:history.length,feedback,omittedCandidateCount:omitted.length,
+      omittedCandidateIds:listed.map(row=>row.id.slice(0,120)),
+      omittedCandidateIdsTruncated:listed.length<omitted.length||listed.some(row=>row.id.length>120),
+      truncated:omitted.length>0||feedback.some(row=>row.truncation.budgetClipped||row.truncation.casesOmitted>0||row.rationale.truncated),maxCharacters};
+  };
+  const size=(feedback:readonly Feedback[])=>JSON.stringify(packet(feedback)).length;
+  const packed:Feedback[]=[];
+  // Reserve measurements and recent public repair diagnostics before any trace.
+  // A large earlier candidate cannot suppress every later candidate's summary.
+  for(const full of assembled){
+    const core:Feedback={...full,rationale:resize(full.rationale,200),cases:[],
+      engineering:{publicContractErrors:full.engineering.publicContractErrors.slice(-2).map(x=>resize(x,220)),
+        contractIssues:full.engineering.contractIssues.slice(-2).map(x=>({...x,code:x.code.slice(0,120),path:x.path.slice(0,200),message:resize(x.message,220),repairHint:resize(x.repairHint,220)})),
+        issues:full.engineering.issues.slice(-2).map(x=>({...x,code:x.code.slice(0,120),message:resize(x.message,220)}))},
+      truncation:{...full.truncation,casesOmitted:full.truncation.casesOmitted+full.cases.length,budgetClipped:true}};
+    if(size([...packed,core])<=maxCharacters){packed.push(core);continue;}
+    const minimum:Feedback={...core,rationale:resize(full.rationale,0),
+      engineering:{publicContractErrors:core.engineering.publicContractErrors.slice(-1),contractIssues:core.engineering.contractIssues.slice(-1),issues:core.engineering.issues.slice(-1)}};
+    if(size([...packed,minimum])<=maxCharacters)packed.push(minimum);
   }
-  const includedIds=new Set(candidateFeedback.map(row=>String(row.id)));
-  return {source:'public-field-whitelist-v2',scoreInterpretation:'Scores and parentOutcome are measured candidate outputs, not reference answers. A low text-F1 score does not identify a reasoning error. Check the actual computation and requested answer type; contract warnings are observable hints, not gold-derived root-cause labels.',candidateCount:history.length,feedback:candidateFeedback,
-    omittedCandidateIds:history.filter(row=>!chosenIds.has(row.id)||!includedIds.has(row.id)).map(row=>row.id),
-    truncated:includedIds.size<history.length,maxCharacters};
+  const replace=(index:number,value:Feedback)=>packed.map((row,i)=>i===index?value:row);
+  let remainingDetails=packed.filter(row=>assembled.find(full=>full.id===row.id)!.cases.length>0).length;
+  for(let i=0;i<packed.length;i++){
+    const full=assembled.find(row=>row.id===packed[i]!.id)!;
+    if(!full.cases.length)continue;
+    const start=size(packed),share=Math.floor((maxCharacters-start)/remainingDetails--);
+    const fits=(value:Feedback)=>{const length=size(replace(i,value));return length<=maxCharacters&&length-start<=share;};
+    if(fits(full)){packed[i]=full;continue;}
+    for(const detail of full.cases){
+      const plain={taskId:detail.taskId,prompt:detail.prompt,outputInstruction:detail.outputInstruction,pairedDelta:detail.pairedDelta,
+        outcomes:detail.outcomes,outcomesTruncated:detail.outcomesTruncated,traceOmitted:true};
+      const compact={...plain,prompt:resize(detail.prompt,2000,true),outputInstruction:resize(detail.outputInstruction,1200),
+        outcomes:detail.outcomes.map(row=>({...row,prediction:resize(row.prediction,120),
+          parentOutcome:row.parentOutcome?{...row.parentOutcome,prediction:resize(row.parentOutcome.prediction,120)}:null}))};
+      for(const variant of [detail,plain,compact]){
+        const current=packed[i]!;
+        const next:Feedback={...current,cases:[...current.cases,variant],
+          truncation:{...current.truncation,casesOmitted:current.truncation.casesOmitted-1}};
+        if(fits(next)){packed[i]=next;break;}
+      }
+    }
+    const enriched:Feedback={...packed[i]!,rationale:full.rationale,engineering:full.engineering};
+    if(fits(enriched))packed[i]=enriched;
+  }
+  return packet(packed);
 }

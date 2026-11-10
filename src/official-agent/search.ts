@@ -270,7 +270,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
       authorizedRetrievalTargets:[{name:'task-public',scope:'only this task public input; never other tasks, labels, confirmation or Test'}],
       publicTaskExamples:options.publicTasks.slice(0,2).map(task=>({id:task.id,prompt:task.prompt,outputInstruction:taskOutputRequirements(task)})),
       history:state.history.map(row=>({id:row.id,parentId:row.parentId,status:row.status,explorationDirection:row.explorationDirection,...(row.rationale?{rationale:row.rationale.slice(0,1000)}:{}),
-        ...(isOfficialCandidate(row)?{score:row.evaluation.score,totalTokens:row.evaluation.totalTokens}:{}),...(row.status==='quality-pruned'?{stage:row.evaluation?.examples}:{}),})),
+        ...(isOfficialCandidate(row)?{score:row.evaluation.score,totalTokens:row.evaluation.totalTokens}:{}),...(row.status==='quality-pruned'?{stage:row.evaluation?.examples,stageScore:row.evaluation?.score}:{}),})),
       measuredFeedback:buildOfficialFeedback(state.history,options.publicTasks),
       ...(selection.contractRepair?{contractRepair:selection.contractRepair}:{}),});
     await save();await event({type:'unified-proposal-request',id,designRound:selection.designRound,proposalAttempt,systemPrompt:UNIFIED_OPTIMIZER_SYSTEM,request});
