@@ -2,7 +2,7 @@ import type {AgentDefinition} from '@codesoul-co/ditto/runtime';
 import {automationProgressController} from './progress-controller.js';
 import {validateOfficialDefinition} from './schema.js';
 
-export const AUTOMATION_LAYERED_CONTROLLER_VERSION='automation-layered-controller-v9';
+export const AUTOMATION_LAYERED_CONTROLLER_VERSION='automation-layered-controller-v10';
 export interface AutomationLayeredPolicy{readonly failureThreshold?:number;readonly maxAudits?:number;readonly maxProtocolFailures?:number;readonly inspectMutations?:boolean;}
 const ref=(path:string)=>({$ref:path});
 const op=(name:string,...args:any[])=>({$op:name,args});
@@ -42,6 +42,9 @@ export function automationLayeredController(policy:AutomationLayeredPolicy={}):A
  ],output:ref('nodes.feedback')});
  definition.graphs['progress-audit']=reviewGraph('completion-or-stall');
  definition.graphs.inspect=structuredClone(definition.graphs.action);
- loop.steps.inspect={graph:'inspect',input:{task:ref('input.task'),host:ref('input.host'),history:ref('state.history'),decision:ref('state.inspection')},assign:{history:ref('result.history'),evidence:ref('result.evidence'),stalled:ref('result.progress.stalled')},transitions:[{when:ref('state.stalled'),next:'progress-audit'},{next:'decision'}]};
+ // A record read may queue a missing-field projection. Consume that actual
+ // next request before asking the Actor to decide again; conflicts still take
+ // priority, and failed reads remain observations under the existing budgets.
+ loop.steps.inspect={graph:'inspect',input:{task:ref('input.task'),host:ref('input.host'),history:ref('state.history'),decision:ref('state.inspection')},assign:{history:ref('result.history'),evidence:ref('result.evidence'),stalled:ref('result.progress.stalled'),inspection:ref('result.inspection')},transitions:[{when:ref('state.stalled'),next:'progress-audit'},{when:ref('result.requiresInspection'),next:'inspect'},{next:'decision'}]};
  return validateOfficialDefinition(definition);
 }

@@ -9,9 +9,13 @@ import {createExperimentRuntime,experimentRuntimeConfig} from '../ditto/runtime.
 import {runOfficialAgent} from '../official-agent/executor.js';
 import type {BenchmarkTask} from '../domain.js';
 import {parseUnifiedArguments} from '../unified/cli.js';
+import {runUnifiedExperiment} from '../official-agent/runner.js';
 
 const task:BenchmarkTask={id:'fixture',dataset:'drop',prompt:'Passage: The touchdown was 49 yards. Question: How many yards?',outputInstruction:'',metadata:{}};
 const clone=(x:unknown):any=>JSON.parse(JSON.stringify(x));
+test('Test rejects a programmatic seed replacement before reading data or creating a provider',async()=>{
+ await assert.rejects(runUnifiedExperiment({command:'test',initialDefinition:OFFICIAL_BASELINE} as any),/Test cannot replace its frozen selection/);
+});
 function child(direction:string):any{
  const d=clone(OFFICIAL_BASELINE),solve=d.graphs.main.nodes[1];let primary='native';const auxiliary:any[]=[];
  if(direction==='native-reasoning'){

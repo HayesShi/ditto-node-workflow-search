@@ -12,6 +12,47 @@ import {NODE_SYSTEM_PROMPT,REFLECTION_SYSTEM_CONTRACT} from '../graph-agent/syst
 import type {BenchmarkTask} from '../domain.js';
 import {createMutationInspector} from '../official-agent/mutation-inspection.js';
 
+async function chainedReadback(queryFails:boolean){
+ const base='https://instance.salesforce.com/services/data/v61.0',url=base+'/sobjects/Contact/contact1',queryUrl=base+'/query';
+ const calls:{name:string;arguments:any}[]=[];let writes=0,actors=0,reviews=0;
+ const task:BenchmarkTask={id:'chained-readback-fixture',dataset:'automationbench',prompt:'Update the contact city to Paris using the available service.',outputInstruction:'Use actual tools.',metadata:{}};
+ const settings={baseUrl:'https://example.invalid',apiKey:'offline',model:'mock',concurrency:1,timeoutMs:3000};
+ const world:any={tools:['api_search','api_fetch','base64_encode'].map(name=>({name,inputSchema:{type:'object',additionalProperties:true}})),record(){},assertHealthy(){},async call(name:string,args:any){
+  calls.push({name,arguments:structuredClone(args)});
+  if(name==='api_search')return{content:JSON.stringify({results:[{method:'GET',url:base+'/sobjects/Contact/{id}',parameters:{id:{required:true,location:'path'}}},{method:'GET',url:queryUrl,parameters:{q:{required:true,location:'query'}}}]})};
+  if(args.method==='PATCH'){writes++;return{content:'{}'};}
+  if(args.url===queryUrl){assert.equal(JSON.parse(args.params).q,"SELECT Id, MailingCity FROM Contact WHERE Id = 'contact1'");return{content:JSON.stringify(queryFails?{error:{code:404,message:'Projection unavailable'}}:{records:[{Id:'contact1',MailingCity:'Paris'}]})};}
+  return{content:JSON.stringify({Id:'contact1',AccountId:'account1'})};
+ }};
+ const runtime=createExperimentRuntime(settings,{provider:{async invoke(input){
+  const review=input.metadata?.nodeType==='INFER.REASONING.REFLECT';
+  if(review){
+   reviews++;const evidence=JSON.parse(String(input.messages.at(-1)?.content)).context[0].content.actualExecution;
+   if(!queryFails){assert.equal(evidence.currentResources[0].content.AccountId,'account1');assert.equal(evidence.currentResources[0].content.MailingCity,'Paris');}
+  }else{
+   actors++;
+   if(writes)assert.equal(calls.filter(c=>c.arguments.url===queryUrl).length,1,'queued projection must execute before the next actor decision');
+  }
+  return{message:{role:'assistant',content:JSON.stringify(review?{assessment:{passed:!queryFails,summary:queryFails?'Actual projection failed; no field observation.':'Complete record and projected field match the requested effects.'},issues:queryFails?[{severity:'error',description:'Projection returned an actual error.'}]:[]}:writes?{done:true,tool:'',arguments:{}}:{done:false,tool:'api_fetch',arguments:{method:'PATCH',url,params:null,body:'{"MailingCity":"Paris"}'}})},finishReason:'stop',usage:{inputTokens:1,outputTokens:1,totalTokens:2}};
+ }}});
+ try{return{run:await automationScope.run(world,()=>runOfficialAgent(automationLayeredController(),task,runtime,settings)),calls,writes,actors,reviews};}finally{await runtime.close();}
+}
+
+test('inspection drains the complete-record and missing-field projection chain before returning to the actor',async()=>{
+ const {run,calls,writes,actors,reviews}=await chainedReadback(false);
+ assert.equal(run.modelFailure,undefined);assert.equal(writes,1);assert.equal(actors,4);assert.equal(reviews,1);
+ assert.deepEqual(calls.map(c=>c.name==='api_search'?'catalog':c.arguments.method==='PATCH'?'write':c.arguments.url.endsWith('/query')?'projection':'record'),['catalog','record','write','record','projection']);
+ assert.equal(run.rawNodeOutputs['inspect/history'].evidence.effects[0].status,'witnessed');
+});
+
+test('a failed chained projection remains an actual error and is not dispatched forever',async()=>{
+ const {run,calls,writes,reviews}=await chainedReadback(true);
+ assert.equal(run.modelFailure,undefined);assert.equal(writes,1);assert.equal(reviews,4);
+ assert.equal(calls.filter(c=>c.name==='api_fetch'&&c.arguments.url.endsWith('/query')).length,1);
+ assert.match(run.answer,/audit budget exhausted/i);
+ assert.equal(run.rawNodeOutputs['inspect/history'].evidence.effects[0].status,'unverified');
+});
+
 test('independent review separates prior opinions from executed facts and only decodes proposed bytes for display',()=>{
  const raw=Buffer.from('To: sample@example.invalid\r\nSubject: Status\r\n\r\nActual update.').toString('base64url');
  const value={done:false,tool:'api_fetch',arguments:{method:'POST',url:'https://mail.invalid/messages/send',body:JSON.stringify({raw})}};

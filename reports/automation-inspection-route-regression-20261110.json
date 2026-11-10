@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-10",
+  "basePr": 11,
+  "baseCommit": "6592a01ad4b2389bce36d02456b051af865c7b87",
+  "controller": "automation-layered-controller-v10",
+  "fullRegression": {"tests": 404, "passed": 404, "failed": 0, "skipped": 0, "durationMs": 214609.9936},
+  "typecheck": "passed",
+  "campaignSyntaxCheck": "passed",
+  "regressions": [
+    "Complete-record read and queued field projection execute before the next actor decision",
+    "Actual failed projection executes once, stays unverified and exits within the existing audit budget",
+    "Frozen Test rejects programmatic seed replacement before any data/provider setup"
+  ],
+  "log": "../output/automation-route-repair-full-regression-20261110.log",
+  "networkModelCallsInRegression": 0,
+  "onlineCampaign": "Separate frozen runtime; first validate Search200 once, then full Search and frozen Test for DROP and Automation"
+}

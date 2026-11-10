@@ -30,6 +30,9 @@ import {MULTI_WORKER_POLICY,type ExplorationDirection} from '../unified/explorat
 
 export const UNIFIED_FORMAL_PROTOCOL='ditto-official-json-mflow-splits-v1';
 export interface UnifiedCLIOptions{
+ /** Programmatic Search seed; the complete native definition is validated and
+  * frozen by hash. Test always uses its saved selection, never a replacement. */
+ readonly initialDefinition?:GraphDefinition;
  readonly initialization?:OfficialInitializationSelection;readonly command:'search'|'test';readonly dataset:DatasetName;readonly projectRoot:string;
  readonly dataDir:string;readonly outputDir?:string;readonly runDir?:string;readonly userPromptFile?:string;readonly resume:boolean;readonly offlineOnly:boolean;
  readonly maxValidEvaluations:number;readonly maxDesignRounds:number;readonly maxProposalAttempts:number;readonly seed:number;
@@ -52,6 +55,7 @@ export function providerEnvironment(projectRoot:string):Readonly<Record<string,s
 
 /** Search and Test use different directories and never send Test observations to the optimizer. */
 export async function runUnifiedExperiment(options:UnifiedCLIOptions):Promise<void>{
+ if(options.command==='test'&&options.initialDefinition)throw Error('Test cannot replace its frozen selection with a new initial definition');
  const root=resolve(options.projectRoot);
  const settings={...loadProviderSettings(options.offlineOnly?{...process.env,CODE_SOUL_API_KEY:'offline-not-invoked'}:process.env),concurrency:options.concurrency};
  const environment=providerEnvironment(root);
@@ -79,7 +83,8 @@ export async function runUnifiedExperiment(options:UnifiedCLIOptions):Promise<vo
  const savedInitialization=(previousManifest?.identity as any)?.initialization;
  const initialization=options.command==='test'?frozen!.initialization as ReturnType<typeof loadOfficialInitialization>:options.resume&&savedInitialization?savedInitialization:loadOfficialInitialization(options.dataset,options.initialization??'baseline');
  if(options.resume&&savedInitialization&&options.initialization&&options.initialization!==savedInitialization.selection)throw Error('Resume initialization differs');
- const initialDefinition=officialBaseline(options.dataset);
+ const initialDefinition=options.initialDefinition?structuredClone(options.initialDefinition):officialBaseline(options.dataset);
+ (initialDefinition as any).config={...((initialDefinition as any).config??{})};
  if(initialization.seedStrategy)(initialDefinition as any).config.strategy=initialization.seedStrategy;
  (initialDefinition as any).config.firstTaskRepeat=initialization.presentation==='repeat-task-on-first-sample';
  if(initialUser!==undefined)(initialDefinition as any).config.strategy=initialUser;
