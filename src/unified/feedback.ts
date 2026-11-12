@@ -7,6 +7,7 @@ export interface FeedbackEvaluation extends EvaluationSummary {
   readonly stage?:number;
   readonly publicTraces?:readonly unknown[];
   readonly engineeringIssues?:readonly {readonly code:string;readonly message:string}[];
+  readonly artifacts?:{readonly version:'evaluation-evidence-v1';readonly representation:'full-results'|'selection';readonly fullSummary:string;readonly publicTraces:string;readonly caseEvents:string;readonly predictionExcerptLimit:number};
 }
 export interface FeedbackRecord {
   readonly id:string;
@@ -33,7 +34,7 @@ function promptSnippet(text:string,maximum:number){
 }
 
 /** Trace values originate in runtime nodes; strip even accidentally attached scorer/secret fields. */
-function traceValue(value:unknown,maximum=1200):unknown {
+export function traceValue(value:unknown,maximum=1200):unknown {
   let remaining=maximum;
   const seen=new Set<object>();
   function visit(item:unknown,depth:number):unknown {
@@ -71,9 +72,18 @@ function publicTrace(record:FeedbackRecord,taskId:string){
     return {events:events.slice(0,6).map(event=>traceValue(event)),
       ...(isObject(run.nodeInputs)?{nodeInputs:traceValue(run.nodeInputs,2000)}:{}),
       ...(isObject(run.rawNodeOutputs)?{rawNodeOutputs:traceValue(run.rawNodeOutputs,2000)}:{}),
-      truncated:events.length>6};
+      ...(typeof run.caseId==='string'?{caseId:run.caseId}:{}),
+      ...(typeof run.traceSelection==='string'?{selection:run.traceSelection}:{}),
+      truncated:events.length>6||run.truncated===true};
   });
-  return {source:'public-runtime-events',runs:selected,originalRuns:runs.length,truncated:runs.length>selected.length||selected.some(run=>run.truncated)};
+  const originalRuns=Math.max(runs.length,...runs.map(run=>isObject(run)&&finite(run.originalTaskRuns)?run.originalTaskRuns:0));
+  return {source:'public-runtime-events',runs:selected,originalRuns,truncated:originalRuns>selected.length||selected.some(run=>run.truncated)};
+}
+
+function predictionSnippet(row:CaseResult,limit:number){
+ const part=clipped(row.prediction,limit),projection=row.details?.artifactProjection;
+ if(isObject(projection)&&finite(projection.predictionLength))return{...part,originalLength:projection.predictionLength,truncated:part.truncated||projection.predictionLength>row.prediction.length};
+ return part;
 }
 
 export interface FeedbackOptions {
@@ -121,9 +131,9 @@ export function buildUnifiedFeedback(history:readonly FeedbackRecord[],tasks:rea
         usageStatus:evaluation?.tokenUsageStatus??'unknown'},
       cases:selected.map((item,index)=>({taskId:item.taskId,prompt:promptSnippet(taskMap.get(item.taskId)!.prompt,4000),
         outputInstruction:clipped(taskOutputRequirements(taskMap.get(item.taskId)!),2600),pairedDelta:item.delta,
-        outcomes:item.outcomes.slice(0,5).map(row=>({caseId:row.caseId,score:row.score,prediction:clipped(row.prediction,350),
-          answerContractWarnings:publicAnswerWarnings(taskMap.get(item.taskId)!,row.prediction),
-          parentOutcome:prior.has(row.caseId)?{candidateId:reference!.id,score:prior.get(row.caseId)!.score,prediction:clipped(prior.get(row.caseId)!.prediction,350)}:null})),
+        outcomes:item.outcomes.slice(0,5).map(row=>({caseId:row.caseId,score:row.score,prediction:predictionSnippet(row,350),
+          answerContractWarnings:predictionSnippet(row,Number.MAX_SAFE_INTEGER).truncated?[]:publicAnswerWarnings(taskMap.get(item.taskId)!,row.prediction),
+          parentOutcome:prior.has(row.caseId)?{candidateId:reference!.id,score:prior.get(row.caseId)!.score,prediction:predictionSnippet(prior.get(row.caseId)!,350)}:null})),
         outcomesTruncated:item.outcomes.length>5,...(index<3?{trace:publicTrace(record,item.taskId)}:{traceOmitted:true})})),
       engineering:{publicContractErrors:(record.publicErrors??[]).slice(-5).map(message=>clipped(message,700)),
         contractIssues:(record.publicIssues??[]).slice(-5).map(issue=>({code:issue.code,path:issue.path,message:clipped(issue.message,700),repairHint:clipped(issue.repairHint,700)})),

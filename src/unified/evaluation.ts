@@ -5,6 +5,8 @@ import type {DefinitionIssue,GraphDefinition} from '../graph-agent/schema.js';
 import {pairedRegressionDecision,unifiedStages} from './policy.js';
 import type {UnifiedCandidate,UnifiedEvaluation} from './search.js';
 import {UnifiedRunStore,artifactHash,caseFile} from './store.js';
+import {EvaluationTraceView,selectionEvaluation} from './evidence.js';
+import {currentEvaluationCaseId} from '../benchmark/evaluator.js';
 
 export interface UnifiedEvaluationOptions<D=GraphDefinition>{
  readonly benchmark:LoadedBenchmark;readonly definition:D;readonly id:string;
@@ -24,11 +26,13 @@ export class UnifiedEvaluationError extends Error{
  readonly code:string;
  readonly publicMessage:string;
  readonly publicIssue:DefinitionIssue;
+ readonly checkpointFailure:boolean;
  constructor(message:string,row:CaseResult,original?:unknown){
   super(message,{cause:original});this.name='UnifiedEvaluationError';
   this.failureKind=row.failureKind??'execution';
   this.code=String((original as {code?:unknown}|undefined)?.code??'UNIFIED_ENGINEERING_FAILURE');
-  this.infrastructureFailure=['provider','timeout','judge'].includes(this.failureKind)||['SEARCH_BUDGET_EXHAUSTED','SEARCH_DIRECTION_BUDGET'].includes(this.code);
+  this.checkpointFailure=(original as {checkpointFailure?:unknown}|undefined)?.checkpointFailure===true;
+  this.infrastructureFailure=this.checkpointFailure||['provider','timeout','judge'].includes(this.failureKind)||['SEARCH_BUDGET_EXHAUSTED','SEARCH_DIRECTION_BUDGET'].includes(this.code);
   const publicText=(original as {publicMessage?:unknown}|undefined)?.publicMessage;
   this.publicMessage=!this.infrastructureFailure&&typeof publicText==='string'?publicText:'Public workflow interface validation failed; consult the retained host diagnostics. No benchmark answer or private scorer detail is supplied.';
   const issue=(original as {publicIssue?:DefinitionIssue}|undefined)?.publicIssue;
@@ -46,18 +50,20 @@ export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:Unifie
  const prefix='evaluations/'+id;
  const saved=options.resume?await store.optional<EvaluationCheckpoint>(prefix+'/checkpoint.json'):undefined;
  if(saved&&saved.identity!==identity)throw Error('Candidate/data/prompt/runtime identity differs; cached cases cannot be reused');
- if(saved?.complete)return saved.complete;
+ if(saved?.complete?.artifacts?.representation==='selection')return saved.complete;
  const cases=new Map<string,CaseResult>((saved?.cases??[]).map(row=>[row.caseId,row]));
  const failures=new Map<string,unknown>();
- const publicTraces:unknown[]=options.resume?[...await store.lines<unknown>(prefix+'/public-traces.jsonl')]:[];
+ const traces=new EvaluationTraceView(benchmark.tasks.map(task=>task.id),options.repeats);
+ if(options.resume)for await(const trace of store.scan<unknown>(prefix+'/public-traces.jsonl'))traces.add(trace);
+ if(saved?.complete)return selectionEvaluation(saved.complete,prefix,traces.views(saved.complete.results));
  const persist=()=>store.write(prefix+'/checkpoint.json',{identity,cases:[...cases.values()]});
  await store.write('candidates/'+id+'.json',{definition,artifactHash:options.candidateHash??artifactHash(definition),...(options.toolArtifacts?.length?{toolArtifacts:options.toolArtifacts}:{}),evaluationIdentity:identity});
  const runner=async(task:BenchmarkTask):Promise<AgentRunResult>=>{
   try{
    const result=await options.runTask(definition,task);
    const record=result as AgentRunResult&{trace?:unknown;nodeInputs?:unknown;rawNodeOutputs?:unknown;reflectionResponses?:unknown;modelFailure?:unknown};
-   const trace={taskId:task.id,events:record.trace??[],nodeInputs:record.nodeInputs,rawNodeOutputs:record.rawNodeOutputs,modelFailure:record.modelFailure};
-   publicTraces.push(trace);
+   const trace={taskId:task.id,caseId:currentEvaluationCaseId(),events:record.trace??[],nodeInputs:record.nodeInputs,rawNodeOutputs:record.rawNodeOutputs,modelFailure:record.modelFailure,executedNodeIds:result.executedNodeIds};
+   traces.add(trace);
    await store.append(prefix+'/public-traces.jsonl',trace);
    await store.append(prefix+'/executions/'+caseFile(task.id)+'.jsonl',{taskId:task.id,...result});
    return result;
@@ -91,6 +97,12 @@ export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:Unifie
   await options.onEvent?.({type:'interface-preflight-completed',candidateId:id,caseId:firstId+'#1',reusedInEvaluation:true});
  }
  const stages=options.prune&&options.reference?unifiedStages(benchmark.tasks.length):[benchmark.tasks.length];
+ const finish=async(summary:UnifiedEvaluation):Promise<UnifiedEvaluation>=>{
+  const selection=selectionEvaluation(summary,prefix,traces.views(summary.results));
+  await store.write(prefix+'/summary.json',{...summary,publicTraces:selection.publicTraces,artifacts:{...selection.artifacts!,representation:'full-results'}});
+  await store.write(prefix+'/checkpoint.json',{identity,cases:[...cases.values()],complete:selection});
+  return selection;
+ };
  let latest:EvaluationSummary|undefined;
  for(const stage of stages){
   const ids=benchmark.tasks.slice(0,stage).map(task=>task.id);
@@ -101,11 +113,9 @@ export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:Unifie
   await store.write(prefix+'/stage-'+stage+'.json',{stage,...decision,score:latest.score,repeats:options.repeats,referenceId:options.reference?.id??null});
   await options.onEvent?.({type:'stage-completed',candidateId:id,stage,score:latest.score,repeats:options.repeats,...decision});
   if(!decision.advance&&decision.reason==='large-paired-regression'){
-   const summary:UnifiedEvaluation={...latest,qualityPruned:true,stage,publicTraces:publicTraces as NonNullable<UnifiedEvaluation['publicTraces']>};
-   await store.write(prefix+'/summary.json',summary);await store.write(prefix+'/checkpoint.json',{identity,cases:[...cases.values()],complete:summary});return summary;
+   return finish({...latest,qualityPruned:true,stage});
   }
  }
  if(!latest)throw Error('No completed evaluation stage');
- const summary:UnifiedEvaluation={...latest,stage:benchmark.tasks.length,publicTraces:publicTraces as NonNullable<UnifiedEvaluation['publicTraces']>};
- await store.write(prefix+'/summary.json',summary);await store.write(prefix+'/checkpoint.json',{identity,cases:[...cases.values()],complete:summary});return summary;
+ return finish({...latest,stage:benchmark.tasks.length});
 }
