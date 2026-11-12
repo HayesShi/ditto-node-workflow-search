@@ -18,7 +18,7 @@ foreach ($dataset in @('drop','automationbench')) {
     $count=if($dataset -eq 'drop'){16}else{4}
     $env:DITTO_PROVIDER_LOG=Join-Path $root "$dataset-provider.jsonl"
     $arguments=@('--max-old-space-size=4096','--experimental-vm-modules','--env-file-if-exists=../ditto-workflow-search/.env','scripts/validate_official_search_small.mjs','--dataset',$dataset,'--count',"$count",'--output',"../output/11218/$dataset",'--max-valid-evaluations','5','--max-design-rounds','12','--max-proposal-attempts','3','--max-calls','800','--max-tokens','20000000','--initialization','baseline')
-    if ($dataset -eq 'automationbench') { $arguments+=@('--controller','layered-v10') }
+    if ($dataset -eq 'automationbench') { $arguments+=@('--controller','layered-v10','--data-dir','../output/five-dataset-small-20261104/data/automationbench') }
     $process=Start-Process -FilePath $node -ArgumentList $arguments -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root "$dataset.stdout.log") -RedirectStandardError (Join-Path $root "$dataset.stderr.log") -PassThru
     $runs+=@{dataset=$dataset;pid=$process.Id;startedAt=$process.StartTime.ToUniversalTime().ToString('o');arguments=$arguments;count=$count}
 }
