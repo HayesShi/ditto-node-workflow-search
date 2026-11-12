@@ -55,6 +55,8 @@ export interface BenchmarkEvaluationOptions {
   readonly automationBudgetPersistence?: import('../execution/automation-budget.js').AutomationBudgetPersistence;
   /** Caller must verify the complete execution identity before supplying recovery records. */
   readonly priorCases?: readonly CaseResult[];
+  /** Host-only storage projection after scoring/onCase; must preserve answers, validity and all metrics. */
+  readonly retainCase?: (result: CaseResult) => CaseResult;
   /** Called after each case finishes; useful for live progress without exposing private judge data. */
   readonly onCase?: (progress: {
     readonly completed: number;

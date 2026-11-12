@@ -54,6 +54,16 @@ export class EvaluationTraceView {
  }
 }
 
+/** Grade first, journal full details, then retain only a pointer to bulky private worlds/traces. */
+export function boundedCaseDetails(row:CaseResult,fullCases:string):CaseResult{
+ if(row.valid!==true||row.error!==undefined)return row;
+ const {details,providerDiagnostics,previousResults,checkerAudits,judgeRecovery,generationOutcomes,...rest}=row;
+ if(JSON.stringify({details,providerDiagnostics,previousResults,checkerAudits,judgeRecovery,generationOutcomes}).length<=32768)return row;
+ return{...rest,...(row.attempts?{attempts:row.attempts.map(({providerDiagnostics:_diagnostics,...attempt})=>attempt)}:{}),
+  details:{artifactProjection:{version:'external-case-details-v1',fullCases,caseId:row.caseId,predictionLength:row.prediction.length,normalizedPredictionLength:row.normalizedPrediction.length}}};
+}
+
+
 function selectionCase(row:CaseResult):CaseResult{
  const {details:_details,providerDiagnostics:_diagnostics,previousResults:_previous,checkerAudits:_audits,
   judgeRecovery:_recovery,attempts:_attempts,generationOutcomes:_generations,...small}=row;

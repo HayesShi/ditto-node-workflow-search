@@ -10,7 +10,7 @@ import type { ProviderCallDiagnostics } from "../domain.js";
 import { captureProviderDiagnostics, currentProviderDiagnostics } from "./provider-diagnostics.js";
 import { createMemoryWorker, type MemoryResources } from "@codesoul-co/ditto/worker/memory";
 import { createInteractionWorker, type RegisteredTool } from "@codesoul-co/ditto/worker/interaction";
-import { EXPERIMENT_GENERATION, EXPERIMENT_PROVIDER_OPTIONS, type ExperimentModelProfile } from "../model-profile.js";
+import { EXPERIMENT_GENERATION, OPTIMIZER_MAX_OUTPUT_TOKENS, EXPERIMENT_PROVIDER_OPTIONS, type ExperimentModelProfile } from "../model-profile.js";
 import type { ProviderSettings } from "../config.js";
 import { PythonTransport } from "./python-transport.js";
 import { withRequestTimeBudget, type TimeBudgetPolicy } from "../execution/time-budget.js";
@@ -151,7 +151,7 @@ export function withProviderLifecycle(provider: ModelProvider, hooks: Pick<Exper
   };
 }
 
-/** Enforce the same policy across SAMPLE, TRAJECTORY, optimizer and stream calls. */
+/** Freeze worker generation; only host-tagged optimizer requests use the smaller JSON output bound. */
 export function applyModelProfile(provider: ModelProvider, _profile: ExperimentModelProfile): ModelProvider {
   const check = (output: SampleOutput): SampleOutput => {
     if(output.finishReason==='error')throw Object.assign(new Error('Provider generation failed (finish_reason=error)'),{code:'PROVIDER_GENERATION_ERROR',infrastructureFailure:true});
@@ -162,7 +162,7 @@ export function applyModelProfile(provider: ModelProvider, _profile: ExperimentM
     delete providerOptions.top_p;
     delete providerOptions.reasoning_effort;
     delete providerOptions.seed;
-    return { ...input, generation: { ...EXPERIMENT_GENERATION }, model: { ...input.model, providerOptions } };
+    return { ...input, generation: { ...EXPERIMENT_GENERATION, ...(input.metadata?.experiment==='ditto-declarative-search-v1'&&input.metadata?.role==='optimizer'?{maxTokens:OPTIMIZER_MAX_OUTPUT_TOKENS}:{}) }, model: { ...input.model, providerOptions } };
   }
   return {
     invoke: async (input, options) => check(await provider.invoke(configure(input), options)),

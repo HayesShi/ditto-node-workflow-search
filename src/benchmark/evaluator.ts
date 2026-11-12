@@ -33,7 +33,7 @@ export async function evaluateTasks(
         ? prior : await caseContexts.run(`${task.id}#${repeat+1}`,()=>evaluateBudgetedOne(task, repeat, scorer, runner, retryAttempts, prior, options));
       completed++;
       await options.onCase?.({ completed, total, result });
-      return result;
+      return options.retainCase?.(result) ?? result;
     });
     results.push(...current);
     repeatScores.push(current.every((result) => result.valid) ? mean(current.map((result) => result.score)) : 0);

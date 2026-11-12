@@ -107,3 +107,10 @@ test('primary CLI selects optional initialization only for Search and preserves 
  assert.equal(parseUnifiedArguments(['search','--dataset','drop']).initialization,undefined);
  assert.throws(()=>parseUnifiedArguments(['test','--dataset','drop','--run-dir','frozen','--initialization','pr10-selected']),/frozen initialization/);
 });
+
+
+test('a delivery deadline returns the completed baseline with an explicit budget reason, never false convergence',async()=>{
+ let calls=0;
+ const result=await searchOfficialWorkflows({runtime:{async run(){calls++;throw Error('unexpected');}} as any,model:{provider:'fixture',model:'fixture'},dataset:'drop',publicTasks:[task],expectedRepeats:1,maxValidEvaluations:20,maxDesignRounds:100000,deadlineAt:0,evaluate:async d=>summary(d)});
+ assert.equal(calls,0);assert.equal(result.state.validEvaluations,1);assert.equal(result.stoppedBecause,'walltime-budget');
+});

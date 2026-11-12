@@ -2,6 +2,10 @@ import {graph,type DittoRuntime} from '@codesoul-co/ditto/runtime';
 import type {ModelConfig,NodeResult,SampleOutput} from '@codesoul-co/ditto/worker/infer';
 import type {BenchmarkTask,DatasetName,EvaluationSummary} from '../domain.js';
 import {GENERATION} from '../protocol.js';
+import {OPTIMIZER_MAX_OUTPUT_TOKENS} from '../model-profile.js';
+import {withWorkflowTimeBudget} from '../execution/time-budget.js';
+export const OFFICIAL_OPTIMIZER_GENERATION=Object.freeze({...GENERATION,maxTokens:OPTIMIZER_MAX_OUTPUT_TOKENS});
+export const OFFICIAL_OPTIMIZER_REQUEST_MS=180000;
 import {SeededRandom} from '../search/random.js';
 import {checkAFlowConvergence} from '../search/convergence.js';
 import {captureProviderDiagnostics,summarizeProviderDiagnostics} from '../ditto/provider-diagnostics.js';
@@ -64,7 +68,7 @@ export interface OfficialSearchOptions {
   readonly runtime:Pick<DittoRuntime,'run'>; readonly model:ModelConfig; readonly dataset:DatasetName;
   readonly publicTasks:readonly BenchmarkTask[]; readonly expectedExamples?:number; readonly expectedRepeats?:number;
   readonly maxValidEvaluations?:number; readonly maxDesignRounds?:number; readonly maxProposalAttempts?:number;
-  readonly seed?:number; readonly patience?:number; readonly identity?:string;
+  readonly deadlineAt?:number; readonly seed?:number; readonly patience?:number; readonly identity?:string;
   readonly initialDefinition?:GraphDefinition;readonly initialization?:unknown;
   /** Explicit opt-out is for isolated protocol tests/legacy diagnostic comparisons. Main search enables protected directions. */
   readonly exploration?:false;
@@ -75,7 +79,7 @@ export interface OfficialSearchOptions {
 }
 
 const proposalGraph=graph<{model:ModelConfig;request:string;id:string}>('unified-declarative-proposal')
-  .node('proposal','INFER.REASONING.SAMPLE',[],input=>({model:input.model,generation:GENERATION,
+  .node('proposal','INFER.REASONING.SAMPLE',[],input=>({model:input.model,generation:OFFICIAL_OPTIMIZER_GENERATION,
     messages:[{role:'system',content:UNIFIED_OPTIMIZER_SYSTEM},{role:'user',content:input.request}],
     metadata:{experiment:UNIFIED_SEARCH_POLICY,role:'optimizer',candidateId:input.id,systemPromptVersion:UNIFIED_PROMPT_VERSION}}));
 const message=(error:unknown)=>error instanceof Error?error.message:String(error);
@@ -149,7 +153,7 @@ export function parseOfficialProposal(content:string):{rationale:string;definiti
 
 /** One measured parent per design round. Engineering repairs stay in that round and retain all attempts. */
 export async function searchOfficialWorkflows(options:OfficialSearchOptions):Promise<{
-  state:OfficialSearchState;best:OfficialCandidate;stoppedBecause:'valid-budget'|'design-budget'|'converged';
+  state:OfficialSearchState;best:OfficialCandidate;stoppedBecause:'valid-budget'|'design-budget'|'converged'|'walltime-budget';
 }>{
   const maxValid=options.maxValidEvaluations??UNIFIED_DEFAULTS.maxValidEvaluations,maxDesign=options.maxDesignRounds??UNIFIED_DEFAULTS.maxDesignRounds;
   const maxAttempts=options.maxProposalAttempts??UNIFIED_DEFAULTS.maxProposalAttempts,repeats=options.expectedRepeats??UNIFIED_DEFAULTS.validationRepeats;
@@ -163,8 +167,8 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
   const explore=options.exploration!==false;
   if(explore&&officialNodes(baseline).filter(n=>n.node.type==='INFER.REASONING.SAMPLE').length>1)throw Error('Protected multi-worker search requires a baseline with at most one SAMPLE');
   if((baseline as {version:number}).version!==1)throw Error('Official baseline must use version:1');
-  const configurationHash=digest({policy:UNIFIED_SEARCH_POLICY,mutationPolicy:OFFICIAL_MUTATION_LIMITS,directionResources:'shared-global-no-direction-caps-v1',system:UNIFIED_OPTIMIZER_SYSTEM_SHA256,contracts:{proposal:OFFICIAL_PROPOSAL_CONTRACT_VERSION,native:NATIVE_CONTRACTS_VERSION,guide:digest(GRAPH_DEFINITION_GUIDE)},identity:options.identity??null,dataset:options.dataset,
-    model:options.model,generation:GENERATION,answerContract:publicAnswerContract(options.dataset),evidencePresentation:EVIDENCE_PRESENTATION_VERSION,exploration:explore?MULTI_WORKER_POLICY:false,taskIds:options.publicTasks.map(task=>task.id),repeats,maxValid,maxDesign,maxAttempts,patience,seed,baseline:officialArtifactHash(baseline),initialization:options.initialization??null});
+  const configurationHash=digest({policy:UNIFIED_SEARCH_POLICY,mutationPolicy:OFFICIAL_MUTATION_LIMITS,deadlineAt:options.deadlineAt??null,directionResources:'shared-global-no-direction-caps-v1',system:UNIFIED_OPTIMIZER_SYSTEM_SHA256,contracts:{proposal:OFFICIAL_PROPOSAL_CONTRACT_VERSION,native:NATIVE_CONTRACTS_VERSION,guide:digest(GRAPH_DEFINITION_GUIDE)},identity:options.identity??null,dataset:options.dataset,
+    model:options.model,generation:GENERATION,optimizerGeneration:OFFICIAL_OPTIMIZER_GENERATION,optimizerRequestMs:OFFICIAL_OPTIMIZER_REQUEST_MS,answerContract:publicAnswerContract(options.dataset),evidencePresentation:EVIDENCE_PRESENTATION_VERSION,exploration:explore?MULTI_WORKER_POLICY:false,taskIds:options.publicTasks.map(task=>task.id),repeats,maxValid,maxDesign,maxAttempts,patience,seed,baseline:officialArtifactHash(baseline),initialization:options.initialization??null});
   const random=new SeededRandom(seed);
   let state:OfficialSearchState=options.resume?structuredClone(options.resume):{schemaVersion:1,policy:UNIFIED_SEARCH_POLICY,configurationHash,
     systemPromptSha256:UNIFIED_OPTIMIZER_SYSTEM_SHA256,validEvaluations:0,designRoundsCompleted:0,proposalAttempts:0,prunedEvaluations:0,engineeringFailures:0,
@@ -185,7 +189,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
     state={...state,pending:{id:nextId(),designRound:0,proposalAttempt:0,parentId:null,definition:baseline,artifactHash:officialArtifactHash(baseline),rationale:'Frozen dataset-independent baseline; its complete evaluation counts toward the valid budget.'},nextAttemptIndex:state.nextAttemptIndex+1};
     await save();
   }
-  let stoppedBecause:'valid-budget'|'design-budget'|'converged'='valid-budget';
+  let stoppedBecause:'valid-budget'|'design-budget'|'converged'|'walltime-budget'='valid-budget';
   while(true){
     if(state.pending){
       const pending=state.pending;
@@ -234,6 +238,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
     if(state.validEvaluations>=maxValid){stoppedBecause='valid-budget';break;}
     const complete=state.history.filter(isOfficialCandidate);
     if(!state.selection&&(!explore||state.designRoundsCompleted>=EXPLORATION_DIRECTIONS.length)&&checkAFlowConvergence(complete.map(row=>row.evaluation),3,0,patience).converged){stoppedBecause='converged';break;}
+    if(!state.selection&&options.deadlineAt!==undefined&&Date.now()>=options.deadlineAt){stoppedBecause='walltime-budget';break;}
     if(!state.selection&&state.designRoundsCompleted>=maxDesign){stoppedBecause='design-budget';break;}
     if(!state.selection){
       const parent=selectOfficialParent(state.history,random);
@@ -278,7 +283,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
     try{
       let sampled:NodeResult<SampleOutput>;
       try{
-        const output=await captureProviderDiagnostics(async observed=>{records=observed;return options.runtime.run(proposalGraph,{model:options.model,request,id});});
+        const output=await captureProviderDiagnostics(async observed=>{records=observed;return withWorkflowTimeBudget({requestMs:OFFICIAL_OPTIMIZER_REQUEST_MS,workflowMs:null,reason:'Bounded declarative proposal generation; worker generation budget is unchanged'},()=>options.runtime.run(proposalGraph,{model:options.model,request,id}));});
         sampled=output.proposal as NodeResult<SampleOutput>;
       }finally{
         const usage=summarizeProviderDiagnostics(records),aggregate={...state.optimizerUsage};

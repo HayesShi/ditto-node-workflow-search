@@ -5,7 +5,7 @@ import type {DefinitionIssue,GraphDefinition} from '../graph-agent/schema.js';
 import {pairedRegressionDecision,unifiedStages} from './policy.js';
 import type {UnifiedCandidate,UnifiedEvaluation} from './search.js';
 import {UnifiedRunStore,artifactHash,caseFile} from './store.js';
-import {EvaluationTraceView,selectionEvaluation} from './evidence.js';
+import {EvaluationTraceView,selectionEvaluation,boundedCaseDetails} from './evidence.js';
 import {currentEvaluationCaseId} from '../benchmark/evaluator.js';
 
 export interface UnifiedEvaluationOptions<D=GraphDefinition>{
@@ -51,7 +51,8 @@ export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:Unifie
  const saved=options.resume?await store.optional<EvaluationCheckpoint>(prefix+'/checkpoint.json'):undefined;
  if(saved&&saved.identity!==identity)throw Error('Candidate/data/prompt/runtime identity differs; cached cases cannot be reused');
  if(saved?.complete?.artifacts?.representation==='selection')return saved.complete;
- const cases=new Map<string,CaseResult>((saved?.cases??[]).map(row=>[row.caseId,row]));
+ const retainCase=(row:CaseResult)=>boundedCaseDetails(row,prefix+'/case-events.jsonl');
+ const cases=new Map<string,CaseResult>((saved?.cases??[]).map(row=>[row.caseId,retainCase(row)]));
  const failures=new Map<string,unknown>();
  const traces=new EvaluationTraceView(benchmark.tasks.map(task=>task.id),options.repeats);
  if(options.resume)for await(const trace of store.scan<unknown>(prefix+'/public-traces.jsonl'))traces.add(trace);
@@ -75,15 +76,15 @@ export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:Unifie
   }
  };
  const onCase:NonNullable<BenchmarkEvaluationOptions['onCase']>=async progress=>{
-  cases.set(progress.result.caseId,progress.result);await persist();
-  await store.append(prefix+'/case-events.jsonl',progress.result);
+  if((progress.result.details?.artifactProjection as {version?:string}|undefined)?.version!=='external-case-details-v1')await store.append(prefix+'/case-events.jsonl',progress.result);
+  cases.set(progress.result.caseId,retainCase(progress.result));await persist();
   await options.onEvent?.({type:'case-completed',candidateId:id,caseId:progress.result.caseId,completed:progress.completed,total:progress.total,valid:progress.result.valid,score:progress.result.valid?progress.result.score:null});
   if(progress.result.valid!==true||progress.result.error!==undefined){
    const taskId=progress.result.caseId.replace(/#[1-9]\d*$/,'');
    throw new UnifiedEvaluationError(progress.result.error??'Invalid execution measurement',progress.result,failures.get(taskId));
   }
  };
- const common:BenchmarkEvaluationOptions={repeats:options.repeats,concurrency:options.concurrency,retryAttempts:options.retryAttempts??5,onCase,...(options.timeBudget?{timeBudget:options.timeBudget}:{})};
+ const common:BenchmarkEvaluationOptions={repeats:options.repeats,concurrency:options.concurrency,retryAttempts:options.retryAttempts??5,onCase,retainCase,...(options.timeBudget?{timeBudget:options.timeBudget}:{})};
  const subset=(ids:readonly string[],evalOptions:BenchmarkEvaluationOptions):Promise<EvaluationSummary>=>{
   if(benchmark.evaluateSearchSubset)return benchmark.evaluateSearchSubset(ids,runner,evalOptions);
   if(ids.length===benchmark.tasks.length&&ids.every((value,index)=>value===benchmark.tasks[index]!.id))return benchmark.evaluate(runner,evalOptions);
@@ -99,7 +100,7 @@ export async function evaluateUnifiedCandidate<D=GraphDefinition>(options:Unifie
  const stages=options.prune&&options.reference?unifiedStages(benchmark.tasks.length):[benchmark.tasks.length];
  const finish=async(summary:UnifiedEvaluation):Promise<UnifiedEvaluation>=>{
   const selection=selectionEvaluation(summary,prefix,traces.views(summary.results));
-  await store.write(prefix+'/summary.json',{...summary,publicTraces:selection.publicTraces,artifacts:{...selection.artifacts!,representation:'full-results'}});
+  await store.write(prefix+'/summary.json',{...summary,publicTraces:selection.publicTraces,artifacts:{...selection.artifacts!,representation:'full-answers-external-large-details',fullCases:prefix+'/case-events.jsonl'}});
   await store.write(prefix+'/checkpoint.json',{identity,cases:[...cases.values()],complete:selection});
   return selection;
  };

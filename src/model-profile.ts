@@ -1,4 +1,5 @@
-/** One request policy for all new benchmark and optimizer calls. */
+/** Stable benchmark generation; declarative optimizer output has its own host bound. */
+export const OPTIMIZER_MAX_OUTPUT_TOKENS=16384;
 export const EXPERIMENT_GENERATION = Object.freeze({ temperature: 0, maxTokens: 393_216 });
 export const EXPERIMENT_PROVIDER_OPTIONS = Object.freeze({
   thinking: Object.freeze({ type: "disabled" }),

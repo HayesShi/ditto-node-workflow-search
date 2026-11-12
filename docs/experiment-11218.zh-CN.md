@@ -19,3 +19,13 @@
 正式候选 official-0039 使用 CONTEXT.LOAD → query → CONTEXT.SELECT → evidence → evidenceText → TRAJECTORY(long-cot, maxSteps=4)，Search 为固定 200 题×5，F1 91.7228%；冻结后 Test 为 800 题×3，F1 92.4250%。当时允许一次主改动带必要伴随节点、最多五个旧节点 input 编辑；正式搜索实际得到七个完整候选并因 100 轮设计预算截断，未收敛。
 
 11218 v2 为固定 Search 中另抽 16 题×1，最佳为 LOAD → RETRIEVAL.SEARCH → SAMPLE，F1 89.5109%，其基线 77.6974%。按这同样 16 题重算旧 official-0039 的历史五次平均为 89.5192%，单次 85.7692%—92.0192%；两者平均差仅约 0.0084 个百分点。它们仍有重复次数、执行时间和候选结构的差异，不能据此推断搜索规则的因果影响。模型别名、temperature/maxTokens、optimizer system 和 Node system 哈希两版一致；实际后端版本未独立核实。
+
+## 2026-11-13 正式搜索与 Test
+
+运行入口 scripts/run_11218_overnight.ps1，独立数据集进程、DROP 并发 16、Automation 并发 24。固定 Search 200题×5，冻结后 Test 分别为 800题×3、600题×3。正常停止以 Top-3 连续五次有效评测不变或20个完整候选预算为准，不再以100个设计轮作为日常截断；交付窗口额外给搜索声明绝对时间预算，为完整 Test 预留90分钟。walltime-budget 是预算截止，明确不等同于收敛。
+
+优化器只生成配置，输出上限为16384 token、单请求180秒；解题 Worker 保持原 temperature=0、maxTokens=393216、请求600秒，不设总体工作流超时。所有方向仍共享全局调用/token预算，没有方向独立上限。
+
+长跑中先写入完整逐题原始记录，再外置大型世界快照、历史诊断与工具轨迹；已评分答案、各项分数和失败次数保持完整。完整原始材料保存在 case-events.jsonl/executions/public-traces，checkpoint及汇总通过明确的artifactProjection指向大字段。回归覆盖原答案完整判分、指标不变、续跑不重复调用及大世界内存投影。
+
+督导进程自动恢复同源码检查点，搜索结束后执行冻结 Test，持续生成正式目录的 summary.json 和 README.zh-CN.md。达到交付时点仍有未完成项会如实显示，后台继续完成，不把部分 Test 均分写成最终成绩。

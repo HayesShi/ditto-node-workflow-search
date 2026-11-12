@@ -22,6 +22,7 @@ try{
 }finally{await shared.close();}
 const optimizers=requests.filter(r=>r.metadata?.role==='optimizer'),nodes=requests.filter(r=>r.metadata?.role!=='optimizer');
 assert.equal(optimizers.length,2);assert.equal(nodes.length,4);
+assert(optimizers.every(r=>r.generation.maxTokens===16384));assert(nodes.every(r=>r.generation.maxTokens===393216));
 assert(optimizers.every(r=>r.messages[0].content===OFFICIAL_OPTIMIZER_SYSTEM));
 assert(nodes.every(r=>r.messages.filter(m=>m.role==='system').map(m=>m.content).join('')===NODE_SYSTEM_PROMPT));
 assert(!JSON.stringify(requests).includes('PRIVATE_SENTINEL'));

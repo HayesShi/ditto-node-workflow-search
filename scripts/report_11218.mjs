@@ -27,13 +27,13 @@ for(const [dataset,directory]of [['drop','drop'],['automationbench',autoDirector
 const report={name:'11218',at:new Date().toISOString(),status:rows.length===2&&rows.every(x=>x.status==='passed')?'completed':'running',formalTest:false,formalScore:false,
  mutationLimits:OFFICIAL_MUTATION_LIMITS,directionResourcePolicy:'shared-global-budget-no-direction-caps-v1',finalPolicyReplayPassed:true,runs:rows,
  startupFailures:await Promise.all(['automationbench','automationbench-retry1'].map(async directory=>{const m=await read(directory+'/manifest.json');return{directory,status:m?.status,error:m?.error,usage:m?.usage};})),
- limitations:['One repeat of a small fixed Search subset; scores are not formal Test results.','DROP Memory candidate replaced answering with passage storage; its low score is a measured strategy failure.','DROP Interaction candidate used constant 1+1; execution success does not establish task-relevant tool use.','Raw wrong-path proposals and their same-round repairs remain recorded; invalid evaluations are excluded from scored candidates.','User prompt changes are exempt from the functional node limit; system templates remain frozen. Each run retains its own source identity.']};
+ limitations:['One repeat of a small fixed Search subset; scores are not formal Test results.','A Memory write alone does not establish later read/use; inspect each candidate data path.','Interaction execution alone does not establish useful task-related computation; inspect arguments, result consumption and error routes.','Raw wrong-path proposals and their same-round repairs remain recorded; invalid evaluations are excluded from scored candidates.','User prompt changes are exempt from the functional node limit; system templates remain frozen. Each run retains its own source identity.']};
 await writeFile(root+'/summary.json',JSON.stringify(report,null,2)+'\n');
 const pct=n=>(n*100).toFixed(2)+'%';
 const lines=['# 11218 小规模验证','',`状态：${report.status}。仅固定 Search 子集，各重复一次；未运行 Test。`,'','单次新增、删除、功能修改合计最多 1 个节点；必要引用接线和依赖边单独计算。所有方向共享全局预算，无独立方向上限。','','| 数据集 | 候选 | 方向 | 得分 |','|---|---|---|---|'];
 for(const run of rows)for(const c of run.candidates)lines.push(`| ${run.dataset} | ${c.id} | ${c.direction} | ${pct(c.score)} |`);
 lines.push('','每个有效候选的独立定义位于 candidates/；完整组合、差分、修改理由和拒绝诊断见 summary.json。','',
-'DROP Memory 候选把原文存储结果当答案输出，属于低质量工作流；Interaction 候选使用固定 1+1，仅验证接口执行，不能据此认为工具组合已优化到位。',
+'节点实际执行不等于有效组合：Memory 需检查是否有读回消费，Interaction 需检查工具入参、结果使用及错误分支。具体组合与分数逐候选保留，不把某个历史候选的缺陷泛化到当前修订。',
 '历史开发启动错误保留在 11218 上级记录中；当前修订按独立目录与独立候选池统计。',
 '原正式实验 Automation 因 Node 堆内存耗尽退出，旧暂停点保留，没有用新规则覆盖旧记录。',
 '新增或修改 Infer user 提示词不计功能节点变更；system 保持冻结。所有已接受候选再次通过当前规则校验。真实模型运行的 sourceCommit/sourceSha256 保留在 summary.json。');

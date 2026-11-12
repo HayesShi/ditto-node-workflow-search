@@ -34,7 +34,7 @@ export interface UnifiedCLIOptions{
  readonly initialDefinition?:GraphDefinition;
  readonly initialization?:OfficialInitializationSelection;readonly command:'search'|'test';readonly dataset:DatasetName;readonly projectRoot:string;
  readonly dataDir:string;readonly outputDir?:string;readonly runDir?:string;readonly userPromptFile?:string;readonly resume:boolean;readonly offlineOnly:boolean;
- readonly maxValidEvaluations:number;readonly maxDesignRounds:number;readonly maxProposalAttempts:number;readonly seed:number;
+ readonly searchDeadlineAt?:number;readonly maxValidEvaluations:number;readonly maxDesignRounds:number;readonly maxProposalAttempts:number;readonly seed:number;
  readonly concurrency:number;readonly maxCalls:number;readonly maxTokens:number;readonly requestMs:number|null;readonly workflowMs:number|null;
  readonly dockerImage:string;
 }
@@ -100,7 +100,7 @@ export async function runUnifiedExperiment(options:UnifiedCLIOptions):Promise<vo
   concurrency:options.concurrency,maxCalls:options.maxCalls,maxTokens:options.maxTokens,dockerImage:options.dockerImage};
  if(previousManifest&&artifactHash(previousManifest.identity)!==artifactHash(identity))throw Error('Resume data/runtime/prompt/model/repeat/resource identity differs');
  const manifest:Record<string,unknown>={schemaVersion:1,experiment:'Ditto official Agent JSON workflow search',createdAt:previousManifest?.createdAt??new Date().toISOString(),status:'preparing',
-  ...identity,providerEnvironment:environment,requestedModel:settings.model,resolvedModelVersion:'not independently verified by this API alias',
+  ...identity,searchDeadlineAt:options.searchDeadlineAt??null,providerEnvironment:environment,requestedModel:settings.model,resolvedModelVersion:'not independently verified by this API alias',
   protocolDetails:{...PROTOCOL,id:UNIFIED_FORMAL_PROTOCOL,searchPolicy:'program-top4-30pct-uniform-70pct-softmax20',validationRepeats:5,testRepeats:3,
    directionResourcePolicy:'shared-global-budget-no-direction-caps-v1',budgetUnit:'complete-valid-evaluation-including-baseline',qualityPruning:'paired-prefix-all-five-repeats',targetScoreStop:false,
    counterPolicy:'proposal/design/full-valid independent; quality-pruned never parent',protocolDifference:'main data/metrics/repeats retained; search allocation adds declared paired regression pruning'},
@@ -145,7 +145,7 @@ export async function runUnifiedExperiment(options:UnifiedCLIOptions):Promise<vo
    const resume=options.resume?await store.optional<UnifiedSearchState>('search-state.json'):undefined;
    const result=await searchUnifiedWorkflows({runtime:experiment.runtime,model:{provider:experiment.providerName,model:experiment.model},dataset:options.dataset,publicTasks:benchmark.tasks,
     expectedExamples:benchmark.tasks.length,expectedRepeats:5,maxValidEvaluations:options.maxValidEvaluations,maxDesignRounds:options.maxDesignRounds,maxProposalAttempts:options.maxProposalAttempts,
-    seed:options.seed,patience:5,initialDefinition,initialization,...(resume?{resume}:{}),evaluate,
+    ...(options.searchDeadlineAt!==undefined?{deadlineAt:options.searchDeadlineAt}:{}),seed:options.seed,patience:5,initialDefinition,initialization,...(resume?{resume}:{}),evaluate,
     save:async state=>store.write('search-state.json',state),event:emit});
    await freezeBest(sourceStore,result.best,executionIdentity,settings.model,settings.baseUrl,options.dataset,officialEnvironment,initialization);
    manifest.status='search-completed';manifest.stoppedBecause=result.stoppedBecause;manifest.best={id:result.best.id,score:result.best.evaluation.score};

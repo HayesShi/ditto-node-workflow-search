@@ -90,3 +90,16 @@ test('a storage failure preserves the pending baseline instead of inventing an i
   (error:any)=>error.checkpointFailure===true);
  assert(saved?.pending);assert.equal(saved!.engineeringFailures,0);assert.equal(saved!.history.length,0);assert.equal(optimizerCalls,0);
 }));
+
+
+test('bulky private worlds are journaled intact while checkpoints and graded summaries retain exact answers and scores',async()=>workspace(async original=>{
+ class BoundedStore extends UnifiedRunStore{override write(name:string,value:unknown){assert(JSON.stringify(value).length<100000,'large private worlds accumulated in a checkpoint/summary');return super.write(name,value);}}
+ const store=new BoundedStore(original.directory),loaded=benchmark(4),world='WORLD-'+ 'x'.repeat(250000),tasks=loaded.tasks;
+ const score={expectedLabel:()=> 'private',async score(_id:string,prediction:string){return{score:1,expected:'private',prediction,normalizedExpected:'private',normalizedPrediction:prediction,method:'fixture',details:{finalWorld:world,toolTrace:[world]}};}};
+ const bench={...loaded,evaluateSearchSubset:(ids:readonly string[],run:any,options:any)=>evaluateTasks(searchSubset('validate',tasks,ids),score,run,options)};
+ const measured=await evaluateUnifiedCandidate({benchmark:bench,definition:BASELINE_DEFINITION,id:'worlds',store,executionIdentity:'fixture',repeats:2,concurrency:2,runTask:async()=>result('exact complete answer')});
+ assert.equal(measured.score,1);assert.equal(measured.results.length,8);assert.equal(measured.totalTokens,40);
+ const checkpoint=await store.read<any>('evaluations/worlds/checkpoint.json');assert.equal(checkpoint.cases[0].prediction,'exact complete answer');assert.equal(checkpoint.cases[0].details.artifactProjection.version,'external-case-details-v1');
+ const full=await store.read<any>('evaluations/worlds/summary.json');assert.equal(full.results[0].prediction,'exact complete answer');
+ let n=0;for await(const row of store.scan<any>('evaluations/worlds/case-events.jsonl')){assert.equal(row.details.finalWorld,world);n++;}assert(n>=8);
+}));
