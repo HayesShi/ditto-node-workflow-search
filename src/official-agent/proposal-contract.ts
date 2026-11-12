@@ -7,9 +7,9 @@ const textSchema={type:'string',minLength:1,pattern:'\\S'};
 /** Mutation metadata is not part of the native AgentDefinition. */
 export const OFFICIAL_MUTATION_SCHEMA={
  type:'object',additionalProperties:false,required:['primaryNodeId','auxiliary'],
- properties:{primaryNodeId:textSchema,auxiliary:{type:'array',items:{type:'object',additionalProperties:false,
+ properties:{primaryNodeId:textSchema,auxiliary:{type:'array',maxItems:0,items:{type:'object',additionalProperties:false,
   required:['nodeId','reason'],properties:{nodeId:textSchema,reason:textSchema}}}},
- description:'primaryNodeId is the main added node. auxiliary contains only distinct necessary companion nodes, never the primary, each with its own nonempty reason. Node membership and connectivity are checked against the parent and child graphs.',
+ description:'primaryNodeId identifies the one functional node change. auxiliary must be empty: companion additions are disabled. Added + removed + functionally modified nodes must total at most one; necessary reference and dependency wiring is separate. Preserve the node ID for replacement.',
 } as const;
 
 /** Structural JSON schema only: native compiler and host policy remain authoritative. */
@@ -75,16 +75,17 @@ export function validateMutationExplanation(value:unknown,path='/mutation'):Muta
  record(value,path);fields(value,['primaryNodeId','auxiliary'],path);
  const primary=required(value,'primaryNodeId',path);text(primary,pointer(path,'primaryNodeId'));
  const auxiliary=required(value,'auxiliary',path),auxPath=pointer(path,'auxiliary');
- if(!Array.isArray(auxiliary))fail(`Expected an array of {nodeId,reason}; received ${kind(auxiliary)}`,auxPath,'Use auxiliary:[{nodeId:"companion",reason:"Why this companion is necessary"}]; do not include the primary node.');
+ if(!Array.isArray(auxiliary))fail(`Expected an array of {nodeId,reason}; received ${kind(auxiliary)}`,auxPath,'Use auxiliary:[]; companion additions are disabled by the one-functional-node policy.');
  const seen=new Set<string>();
  auxiliary.forEach((item,index)=>{
   const itemPath=pointer(auxPath,index);record(item,itemPath);fields(item,['nodeId','reason'],itemPath);
   const nodeId=required(item,'nodeId',itemPath);text(nodeId,pointer(itemPath,'nodeId'));
   const reason=required(item,'reason',itemPath);text(reason,pointer(itemPath,'reason'));
-  if(nodeId===primary)fail('The primary node must not also appear in auxiliary',pointer(itemPath,'nodeId'),'Keep the main added node only in primaryNodeId; list its necessary companions in auxiliary.');
+  if(nodeId===primary)fail('The primary node must not also appear in auxiliary',pointer(itemPath,'nodeId'),'Use primaryNodeId for the one functional change and auxiliary:[]; stage other changes in later candidates.');
   if(seen.has(nodeId))fail('Duplicate auxiliary nodeId',pointer(itemPath,'nodeId'),'List each auxiliary node exactly once with its own reason.');
   seen.add(nodeId);
  });
+ if(auxiliary.length)fail(`Companion additions are disabled: allowed=0 actual=${auxiliary.length}; auxiliary=${JSON.stringify([...seen])}`,auxPath,'Use auxiliary:[] and restore all other functional nodes. Only one added, removed or functionally modified node is allowed.');
  return value as unknown as MutationExplanation;
 }
 

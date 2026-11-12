@@ -59,13 +59,13 @@ export function validateOfficialDefinition(source:unknown,tools:readonly ToolDef
 }
 export function officialArtifactHash(d:AgentDefinition,tools:readonly ToolDefinition[]=[]):string{return digest({definition:d,toolArtifacts:tools});}
 export function expandedOfficialNodes(d:AgentDefinition){const c=compileAgent(d);return Object.entries(c.graphs).flatMap(([graph,g])=>g.tasks.map(n=>({id:`${graph}/${n.id}`,type:String(n.node),dependencies:n.dependencies.map(dep=>`${graph}/${dep}`)})));}
-export const OFFICIAL_MUTATION_LIMITS=Object.freeze({policy:'one-functional-node-wiring-separate-v1',maxFunctionalNodeChanges:1,maxAddedCompanions:0,maxDeclaredNodes:24,maxToolChanges:1,
+export const OFFICIAL_MUTATION_LIMITS=Object.freeze({policy:'one-functional-node-wiring-separate-v2',maxFunctionalNodeChanges:1,maxAddedCompanions:0,maxDeclaredNodes:24,maxToolChanges:1,
  counting:'added + removed + functional modifications <= 1; preserve ID when replacing a node; dependsOn and necessary node-reference wiring are counted separately',dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'});
 const OMIT=Symbol('wiring');
 /** Separate reference wiring from literal prompts/operations; native validation still freezes host bindings. */
 function functionalInput(value:any):any{
  if(value===null||typeof value!=='object')return value;
- if(typeof value.$ref==='string')return OMIT;
+ if(typeof value.$ref==='string'){const fallback=Object.hasOwn(value,'default')?functionalInput(value.default):OMIT;return fallback===OMIT||fallback===null||fallback===''?OMIT:{__fallback:fallback};}
  if(value.role==='user'&&value.content&&functionalInput(value.content)===OMIT)return OMIT;
  if(Array.isArray(value)){const items=value.map(functionalInput).filter(v=>v!==OMIT);return items.length?items:OMIT;}
  if(value.$op==='concat'){

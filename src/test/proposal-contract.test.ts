@@ -30,7 +30,7 @@ test('proposal envelope describes official graphs and loops while keeping metada
  }
  const schema=OFFICIAL_PROPOSAL_SCHEMA;
  assert.deepEqual(schema.required,['rationale','definition']);assert.equal(schema.properties.rationale.type,'string');
- assert.equal(schema.properties.mutation.properties.auxiliary.type,'array');assert(Object.isFrozen(schema));assert(Object.isFrozen(schema.$defs.node));
+ assert.equal(schema.properties.mutation.properties.auxiliary.type,'array');assert.equal(schema.properties.mutation.properties.auxiliary.maxItems,0);assert(Object.isFrozen(schema));assert(Object.isFrozen(schema.$defs.node));
  issue(()=>validateProposalEnvelope(envelope({definition:{...clone(OFFICIAL_BASELINE),mutation:mutation()}})),'/definition/mutation',/Unknown field/);
 });
 
@@ -46,7 +46,7 @@ test('malformed rationale gives a precise string contract rather than a vague en
 
 test('mutation shape errors are rejected before semantic code can call array methods',()=>{
  const child=connectedAddition();
- issue(()=>validateOfficialChange(OFFICIAL_BASELINE,child,mutation()),'/mutation',/allowed=1.*actual=3/);
+ issue(()=>validateOfficialChange(OFFICIAL_BASELINE,child,mutation()),'/mutation/auxiliary',/allowed=0.*actual=2/);
  const invalid={primaryNodeId:'compute',auxiliary:{observe:'Expose result'}};
  issue(()=>validateProposalEnvelope(envelope({definition:child,mutation:invalid})),'/mutation/auxiliary',/array.*object/);
  issue(()=>validateOfficialChange(OFFICIAL_BASELINE,child,invalid as any),'/mutation/auxiliary',/array.*object/);
@@ -60,7 +60,7 @@ test('mutation companion validation preserves membership and connectivity requir
  issue(()=>validateMutationExplanation({primaryNodeId:'compute',auxiliary:[{nodeId:'compute',reason:'The primary is not its own companion.'}]}),'/mutation/auxiliary/0/nodeId',/primary/);
  issue(()=>validateMutationExplanation({primaryNodeId:'compute',auxiliary:[{nodeId:'observe',reason:'Observe.'},{nodeId:'observe',reason:'Duplicate.'}]}),'/mutation/auxiliary/1/nodeId',/Duplicate/);
  const child=connectedAddition(),bad=mutation();bad.auxiliary[1]!.nodeId='missing';
- issue(()=>validateOfficialChange(OFFICIAL_BASELINE,child,bad),'/mutation',/Functional node limit/);
+ issue(()=>validateOfficialChange(OFFICIAL_BASELINE,child,bad),'/mutation/auxiliary',/allowed=0/);
  const disconnected=connectedAddition();disconnected.graphs.main.nodes[2].dependsOn=[];
  // The compiler rejects a now undeclared reference before the mutation can waive the DAG contract.
  assert.throws(()=>validateOfficialChange(OFFICIAL_BASELINE,disconnected,mutation()),DefinitionError);

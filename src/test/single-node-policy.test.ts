@@ -24,3 +24,13 @@ test('replacement keeps ID; renaming and deletion list exact differences instead
  replacement.graphs.main.output={$ref:'nodes.solve.output.result.content'};
  assert.doesNotThrow(()=>validateOfficialChange(OFFICIAL_BASELINE,replacement));
 });
+
+
+test('literal fallback changes cannot disguise a second functional edit as reference wiring',()=>{
+ const d:any=structuredClone(OFFICIAL_BASELINE);
+ d.graphs.main.nodes[0].input.sources[0].content.default='Injected fallback instruction';
+ d.graphs.main.nodes[1].type='INFER.REASONING.TRAJECTORY';d.graphs.main.nodes[1].input.strategy={name:'cot'};
+ d.graphs.main.output={$ref:'nodes.solve.output.result.content'};
+ assert.deepEqual(officialMutationDiff(OFFICIAL_BASELINE,d).modified,['context','solve']);
+ assert.throws(()=>validateOfficialChange(OFFICIAL_BASELINE,d),/allowed=1 actual=2/);
+});
