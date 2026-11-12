@@ -59,8 +59,8 @@ export function validateOfficialDefinition(source:unknown,tools:readonly ToolDef
 }
 export function officialArtifactHash(d:AgentDefinition,tools:readonly ToolDefinition[]=[]):string{return digest({definition:d,toolArtifacts:tools});}
 export function expandedOfficialNodes(d:AgentDefinition){const c=compileAgent(d);return Object.entries(c.graphs).flatMap(([graph,g])=>g.tasks.map(n=>({id:`${graph}/${n.id}`,type:String(n.node),dependencies:n.dependencies.map(dep=>`${graph}/${dep}`)})));}
-export const OFFICIAL_MUTATION_LIMITS=Object.freeze({policy:'one-functional-node-wiring-separate-v2',maxFunctionalNodeChanges:1,maxAddedCompanions:0,maxDeclaredNodes:24,maxToolChanges:1,
- counting:'added + removed + functional modifications <= 1; preserve ID when replacing a node; dependsOn and necessary node-reference wiring are counted separately',dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'});
+export const OFFICIAL_MUTATION_LIMITS=Object.freeze({policy:'one-functional-node-prompts-separate-v3',maxFunctionalNodeChanges:1,maxAddedCompanions:0,maxDeclaredNodes:24,maxToolChanges:1,
+ counting:'added + removed + functional modifications <= 1; preserve ID when replacing a node; user prompt changes and necessary reference/dependency wiring do not count',promptChangesCountAsFunctional:false,promptScope:'Infer user messages and objective; system remains frozen; tool arguments, native strategy and constraints remain functional',dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'});
 const OMIT=Symbol('wiring');
 /** Separate reference wiring from literal prompts/operations; native validation still freezes host bindings. */
 function functionalInput(value:any):any{
@@ -75,23 +75,40 @@ function functionalInput(value:any):any{
  const entries=Object.entries(value).map(([k,v])=>[k,functionalInput(v)] as const).filter(([,v])=>v!==OMIT);
  return entries.length?Object.fromEntries(entries):OMIT;
 }
+/** Only explicit Infer user messages are editable prompt data. System messages are never exempt. */
+function withoutUserPrompts(value:any):any{
+ if(value===null||typeof value!=='object')return value;
+ if(value.role==='user')return OMIT;
+ if(Array.isArray(value))return value.map(withoutUserPrompts).filter(v=>v!==OMIT);
+ return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,withoutUserPrompts(v)] as const).filter(([,v])=>v!==OMIT));
+}
+function functionalNodeInput(node:AgentNode){
+ const input=structuredClone(node.input) as any;
+ if(node.type.startsWith('INFER.REASONING.')&&input&&typeof input==='object'&&!Array.isArray(input)){
+  if(Object.hasOwn(input,'messages'))input.messages=withoutUserPrompts(input.messages);
+  delete input.objective;
+ }
+ const normalized=functionalInput(input);return normalized===OMIT?null:normalized;
+}
+function promptSignature(node:AgentNode){return node.type.startsWith('INFER.REASONING.')?digest({messages:(node.input as any)?.messages,objective:(node.input as any)?.objective}):null;}
 export function officialMutationDiff(parent:AgentDefinition,child:AgentDefinition){
  const unique=(id:string)=>[parent,child].every(d=>officialNodes(d).filter(n=>n.node.id===id).length<=1);
  const stable=(d:AgentDefinition)=>officialNodes(d).map(n=>({...n,id:unique(n.node.id)?n.node.id:n.id}));
  const before=stable(parent),after=stable(child),old=new Map(before.map(n=>[n.id,n]));
  const added=after.filter(n=>!old.has(n.id)).map(n=>n.id),removed=before.filter(n=>!after.some(v=>v.id===n.id)).map(n=>n.id);
- const signature=(node:AgentNode)=>digest({type:node.type,input:functionalInput(node.input)===OMIT?null:functionalInput(node.input),require:node.require??null});
+ const signature=(node:AgentNode)=>digest({type:node.type,input:functionalNodeInput(node),require:node.require??null});
  const retained=after.filter(n=>old.has(n.id));
  const modified=retained.filter(n=>signature(n.node)!==signature(old.get(n.id)!.node)).map(n=>n.id);
- const wiringOnly=retained.filter(n=>!modified.includes(n.id)&&digest(n.node)!==digest(old.get(n.id)!.node)).map(n=>n.id);
- return{added,removed,modified,wiringOnly,count:added.length+removed.length+modified.length};
+ const promptChanges=retained.filter(n=>promptSignature(n.node)!==promptSignature(old.get(n.id)!.node)).map(n=>n.id);
+ const wiringOnly=retained.filter(n=>!modified.includes(n.id)&&!promptChanges.includes(n.id)&&digest(n.node)!==digest(old.get(n.id)!.node)).map(n=>n.id);
+ return{added,removed,modified,wiringOnly,promptChanges,count:added.length+removed.length+modified.length};
 }
 export function validateOfficialChange(parent:AgentDefinition,child:AgentDefinition,mutation?:MutationExplanation,parentTools:readonly ToolDefinition[]=[],childTools:readonly ToolDefinition[]=[]):void{
  validateOfficialDefinition(child,childTools);
  if(mutation!==undefined)mutation=validateMutationExplanation(mutation);
  const diff=officialMutationDiff(parent,child);
- check(diff.count<=1,`Functional node limit exceeded: allowed=1 actual=${diff.count}; added=${JSON.stringify(diff.added)}; removed=${JSON.stringify(diff.removed)}; modified=${JSON.stringify(diff.modified)}; wiringOnly=${JSON.stringify(diff.wiringOnly)}`,'/mutation',
-  'Keep exactly one added, removed or functionally modified node. Replace a node under its existing ID. Restore all other functional edits; necessary dependsOn/reference wiring is separate. Do not fix this by editing mutation metadata.');
+ check(diff.count<=1,`Functional node limit exceeded: allowed=1 actual=${diff.count}; added=${JSON.stringify(diff.added)}; removed=${JSON.stringify(diff.removed)}; modified=${JSON.stringify(diff.modified)}; wiringOnly=${JSON.stringify(diff.wiringOnly)}; promptChangesExcluded=${JSON.stringify(diff.promptChanges)}`,'/mutation',
+  'Keep exactly one added, removed or functionally modified node. Replace a node under its existing ID. Restore all other functional edits; user prompt edits and necessary dependsOn/reference wiring are separate. Do not restore or remove valid user prompt improvements to satisfy this limit. Do not fix this by editing mutation metadata.');
  check(!mutation?.auxiliary.length,'Companion additions are disabled: allowed=0; single functional node limit=1','/mutation/auxiliary','Use auxiliary:[]; stage companion additions in later candidates.');
  const edgeSet=(d:AgentDefinition)=>new Set(expandedOfficialNodes(d).flatMap(n=>n.dependencies.map(dep=>`${dep}->${n.id}`))),a=edgeSet(parent),b=edgeSet(child);
  const removedEdges=[...a].filter(e=>!b.has(e)),addedEdges=[...b].filter(e=>!a.has(e)),edgeLimit=dependencyEditBudget(Math.max(expandedOfficialNodes(parent).length,expandedOfficialNodes(child).length,1));

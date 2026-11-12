@@ -9,7 +9,7 @@ export const OFFICIAL_MUTATION_SCHEMA={
  type:'object',additionalProperties:false,required:['primaryNodeId','auxiliary'],
  properties:{primaryNodeId:textSchema,auxiliary:{type:'array',maxItems:0,items:{type:'object',additionalProperties:false,
   required:['nodeId','reason'],properties:{nodeId:textSchema,reason:textSchema}}}},
- description:'primaryNodeId identifies the one functional node change. auxiliary must be empty: companion additions are disabled. Added + removed + functionally modified nodes must total at most one; necessary reference and dependency wiring is separate. Preserve the node ID for replacement.',
+ description:'primaryNodeId identifies the one functional node change. auxiliary must be empty: companion additions are disabled. Added + removed + functionally modified nodes must total at most one; editable Infer user prompt changes and necessary reference/dependency wiring are separate and do not count. System templates remain frozen. Preserve the node ID for replacement.',
 } as const;
 
 /** Structural JSON schema only: native compiler and host policy remain authoritative. */
