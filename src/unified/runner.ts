@@ -21,7 +21,6 @@ import {UnifiedRunStore,artifactHash} from './store.js';
 import {evaluateUnifiedCandidate} from './evaluation.js';
 import {automationBaseline} from '../graph-agent/automation-baseline.js';
 import {automationIdentity} from '../benchmark/automation.js';
-import {createDirectionBudget,type BudgetDirection} from './direction-budget.js';
 import {MULTI_WORKER_POLICY,type ExplorationDirection} from './exploration.js';
 
 export const UNIFIED_FORMAL_PROTOCOL='ditto-declarative-staged-main-splits-v1';
@@ -86,7 +85,7 @@ export async function runUnifiedExperiment(options:UnifiedCLIOptions):Promise<vo
  const manifest:Record<string,unknown>={schemaVersion:1,experiment:'Ditto unified declarative workflow search',createdAt:previousManifest?.createdAt??new Date().toISOString(),status:'preparing',
   ...identity,providerEnvironment:environment,requestedModel:settings.model,resolvedModelVersion:'not independently verified by this API alias',
   protocolDetails:{...PROTOCOL,id:UNIFIED_FORMAL_PROTOCOL,searchPolicy:'program-top4-30pct-uniform-70pct-softmax20',validationRepeats:5,testRepeats:3,
-   budgetUnit:'complete-valid-evaluation-including-baseline',qualityPruning:'paired-prefix-all-five-repeats',targetScoreStop:false,
+   directionResourcePolicy:'shared-global-budget-no-direction-caps-v1',budgetUnit:'complete-valid-evaluation-including-baseline',qualityPruning:'paired-prefix-all-five-repeats',targetScoreStop:false,
    counterPolicy:'proposal/design/full-valid independent; quality-pruned never parent',protocolDifference:'main data/metrics/repeats retained; search allocation adds declared paired regression pruning'},
   ...previousManifest,identity};
  await store.write('manifest.json',manifest);
@@ -101,27 +100,23 @@ export async function runUnifiedExperiment(options:UnifiedCLIOptions):Promise<vo
   await store.write('provider-budget.json',event.usage);await store.append('provider-usage.jsonl',event);
  }});
  const requestIds=new WeakMap<object,string>();
- let activeDirection:BudgetDirection='baseline';
- const oldDirections=options.resume?await store.optional<ReturnType<ReturnType<typeof createDirectionBudget>['snapshot']>>('provider-direction-budgets.json'):undefined;
- const directionBudget=options.command==='search'?createDirectionBudget({maxCalls:options.maxCalls,maxTokens:options.maxTokens,...(oldDirections?{restored:oldDirections}:{}),onChange:value=>store.write('provider-direction-budgets.json',value)}):undefined;
  const responseModels=new Set<string>();
  const experiment=createExperimentRuntime(settings,{timeBudget,connectTimeoutMs:5000,
   beforeProviderCall:async input=>{
-   await directionBudget?.beforeProviderCall(input,activeDirection);await budget.beforeProviderCall(input);const requestId=randomUUID();requestIds.set(input,requestId);
+   await budget.beforeProviderCall(input);const requestId=randomUUID();requestIds.set(input,requestId);
    await store.append('provider-requests.jsonl',{requestId,at:new Date().toISOString(),input,
     systemHashes:input.messages.filter(message=>message.role==='system').map(message=>createHash('sha256').update(typeof message.content==='string'?message.content:JSON.stringify(message.content)).digest('hex'))});
   },afterProviderCall:async event=>{
    await budget.afterProviderCall(event);
-   await directionBudget?.afterProviderCall(event);
    for(const diagnostic of event.diagnostics){const model=(diagnostic as unknown as {responseModel?:unknown}).responseModel;if(typeof model==='string')responseModels.add(model);}
    await store.append('provider-responses.jsonl',{requestId:requestIds.get(event.input),at:new Date().toISOString(),inputMetadata:event.input.metadata,output:event.output,
     error:event.error instanceof Error?{name:event.error.name,message:event.error.message,code:(event.error as {code?:unknown}).code}:event.error,diagnostics:event.diagnostics});
    await store.write('model-observations.json',{requestedModel:settings.model,responseModels:[...responseModels],note:'API response fields may still be aliases; absent version is unknown'});
   },
   reflectionEvent:async event=>store.append('reflection-events.jsonl',event)});
- const emit=async(event:Readonly<Record<string,unknown>>)=>{if(event.type==='unified-parent-selected'&&event.explorationDirection)activeDirection=event.explorationDirection as ExplorationDirection;await store.append('events.jsonl',{at:new Date().toISOString(),...event});
+ const emit=async(event:Readonly<Record<string,unknown>>)=>{await store.append('events.jsonl',{at:new Date().toISOString(),...event});
   if(['case-completed','stage-completed','unified-search-completed','quality-pruned'].includes(String(event.type)))console.log(JSON.stringify(event));};
- const evaluate=(definition:GraphDefinition,id:string,reference?:UnifiedCandidate,context?:{direction?:ExplorationDirection})=>{activeDirection=context?.direction??'baseline';return evaluateUnifiedCandidate({benchmark,definition,id,store,
+ const evaluate=(definition:GraphDefinition,id:string,reference?:UnifiedCandidate,context?:{direction?:ExplorationDirection})=>{return evaluateUnifiedCandidate({benchmark,definition,id,store,
   executionIdentity:{...identity,artifactHash:artifactHash(definition)},repeats,concurrency:options.concurrency,retryAttempts:5,timeBudget,prune:options.command==='search',resume:options.resume,
   ...(reference?{reference}:{}),runTask:(spec,task)=>runGraphAgent(spec,task,experiment,settings),onEvent:emit});};
  try{

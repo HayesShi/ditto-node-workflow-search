@@ -7,7 +7,7 @@ import {checkAFlowConvergence} from '../search/convergence.js';
 import {captureProviderDiagnostics,summarizeProviderDiagnostics} from '../ditto/provider-diagnostics.js';
 import {DefinitionError,digest,type DefinitionIssue,type ToolDefinition} from '../graph-agent/schema.js';
 import {validateOfficialExploration as validateExploration,executedOfficialDirectionNodes as executedDirectionNodes} from './schema.js';
-import {OFFICIAL_BASELINE as BASELINE_DEFINITION,validateOfficialDefinition as validateDefinition,validateOfficialChange,officialArtifactHash,officialNodes,OFFICIAL_CAPABILITIES as NODE_TYPES,type MutationExplanation,type OfficialAgentDefinition as GraphDefinition} from './schema.js';
+import {OFFICIAL_BASELINE as BASELINE_DEFINITION,validateOfficialDefinition as validateDefinition,validateOfficialChange,OFFICIAL_MUTATION_LIMITS,officialArtifactHash,officialNodes,OFFICIAL_CAPABILITIES as NODE_TYPES,type MutationExplanation,type OfficialAgentDefinition as GraphDefinition} from './schema.js';
 import {OFFICIAL_DEFINITION_GUIDE as GRAPH_DEFINITION_GUIDE} from './prompts.js';
 import {buildUnifiedFeedback as buildOfficialFeedback,type FeedbackEvaluation} from '../unified/feedback.js';
 import {UNIFIED_DEFAULTS,UNIFIED_SEARCH_POLICY,comparableTokens} from '../unified/policy.js';
@@ -163,7 +163,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
   const explore=options.exploration!==false;
   if(explore&&officialNodes(baseline).filter(n=>n.node.type==='INFER.REASONING.SAMPLE').length>1)throw Error('Protected multi-worker search requires a baseline with at most one SAMPLE');
   if((baseline as {version:number}).version!==1)throw Error('Official baseline must use version:1');
-  const configurationHash=digest({policy:UNIFIED_SEARCH_POLICY,system:UNIFIED_OPTIMIZER_SYSTEM_SHA256,contracts:{proposal:OFFICIAL_PROPOSAL_CONTRACT_VERSION,native:NATIVE_CONTRACTS_VERSION,guide:digest(GRAPH_DEFINITION_GUIDE)},identity:options.identity??null,dataset:options.dataset,
+  const configurationHash=digest({policy:UNIFIED_SEARCH_POLICY,mutationPolicy:OFFICIAL_MUTATION_LIMITS,directionResources:'shared-global-no-direction-caps-v1',system:UNIFIED_OPTIMIZER_SYSTEM_SHA256,contracts:{proposal:OFFICIAL_PROPOSAL_CONTRACT_VERSION,native:NATIVE_CONTRACTS_VERSION,guide:digest(GRAPH_DEFINITION_GUIDE)},identity:options.identity??null,dataset:options.dataset,
     model:options.model,generation:GENERATION,answerContract:publicAnswerContract(options.dataset),evidencePresentation:EVIDENCE_PRESENTATION_VERSION,exploration:explore?MULTI_WORKER_POLICY:false,taskIds:options.publicTasks.map(task=>task.id),repeats,maxValid,maxDesign,maxAttempts,patience,seed,baseline:officialArtifactHash(baseline),initialization:options.initialization??null});
   const random=new SeededRandom(seed);
   let state:OfficialSearchState=options.resume?structuredClone(options.resume):{schemaVersion:1,policy:UNIFIED_SEARCH_POLICY,configurationHash,
@@ -254,8 +254,7 @@ export async function searchOfficialWorkflows(options:OfficialSearchOptions):Pro
       parent:{id:parent.id,definition:parent.definition,toolArtifacts:parent.toolArtifacts??[],score:parent.evaluation.score,totalTokens:parent.evaluation.totalTokens},
       immutableProtocol:{policy:UNIFIED_SEARCH_POLICY,repeats,fullExamples:options.publicTasks.length,systemVersion:UNIFIED_PROMPT_VERSION,
         systemPromptSha256:UNIFIED_OPTIMIZER_SYSTEM_SHA256,publicAnswerContract:publicAnswerContract(options.dataset),capabilities:NODE_TYPES,remainingValidBudget:maxValid-state.validEvaluations,
-        mutationLimits:{mainChange:1,auxiliary:'necessary connected predecessors/successors only',maxDeclaredNodes:24,maxExistingContentChanges:5,maxToolChanges:1,
-          dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'}},
+        mutationLimits:OFFICIAL_MUTATION_LIMITS},
       interfaceGuide:GRAPH_DEFINITION_GUIDE,
       proposalContract:{version:OFFICIAL_PROPOSAL_CONTRACT_VERSION,schema:OFFICIAL_PROPOSAL_SCHEMA},
       nativeCatalogue:{version:NATIVE_CONTRACTS_VERSION,nodes:NATIVE_CONTRACTS},

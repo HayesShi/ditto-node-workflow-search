@@ -16,20 +16,18 @@ const clone=(x:unknown):any=>JSON.parse(JSON.stringify(x));
 test('Test rejects a programmatic seed replacement before reading data or creating a provider',async()=>{
  await assert.rejects(runUnifiedExperiment({command:'test',initialDefinition:OFFICIAL_BASELINE} as any),/Test cannot replace its frozen selection/);
 });
-function child(direction:string):any{
- const d=clone(OFFICIAL_BASELINE),solve=d.graphs.main.nodes[1];let primary='native';const auxiliary:any[]=[];
+function child(direction:string,parent:any=OFFICIAL_BASELINE):any{
+ const d=clone(parent),solve=d.graphs.main.nodes.find((n:any)=>n.id==='solve');
  if(direction==='native-reasoning'){
   solve.type='INFER.REASONING.TRAJECTORY';solve.input={...solve.input,objective:'Reason from the original public task',strategy:{name:'cot'},constraints:{maxSteps:1}};d.graphs.main.output={$ref:'nodes.solve.output.result.content'};
  }else{
-  if(direction==='interaction')d.graphs.main.nodes.splice(1,0,{id:primary,type:'INTERACTION.ACT.TOOL',input:{call:{id:'fixture-call',name:'literal_text_find',arguments:{text:{$ref:'input.task.prompt'},needle:'49'}}}});
-  else if(direction==='context-retrieval')d.graphs.main.nodes.splice(1,0,{id:primary,type:'CONTEXT.SELECT',dependsOn:['context'],input:{context:{$ref:'nodes.context'},purpose:'infer',limit:1}});
-  else{
-   primary='remember';d.graphs.main.nodes.splice(1,0,{id:'remember',type:'MEMORY.WRITE',dependsOn:['context'],input:{memories:[{content:{$ref:'nodes.context.items'}}]}},{id:'native',type:'MEMORY.SEARCH',dependsOn:['remember'],input:{query:{$ref:'input.task.prompt'},limit:1}});auxiliary.push({nodeId:'native',reason:'Read the task-local record written by remember'});
-  }
-  d.graphs.main.nodes.splice(-1,0,{id:'render',type:'HOST.DATA.TRANSFORM',dependsOn:['native'],input:{operation:'evidence',value:{$ref:'nodes.native'}}});
-  solve.dependsOn=['render'];solve.input.messages={$op:'concat',args:[solve.input.messages,[{role:'user',content:{$ref:'nodes.render'}}]]};auxiliary.push({nodeId:'render',reason:'Present this operation output to the existing solver'});
+  const id='new-'+direction;
+  if(direction==='interaction')d.graphs.main.nodes.splice(-1,0,{id,type:'INTERACTION.ACT.TOOL',input:{call:{id:'fixture-call',name:'literal_text_find',arguments:{text:{$ref:'input.task.prompt'},needle:'49'}}}});
+  else if(direction==='context-retrieval')d.graphs.main.nodes.splice(-1,0,{id,type:'CONTEXT.SELECT',dependsOn:['context'],input:{context:{$ref:'nodes.context'},purpose:'infer',limit:1}});
+  else d.graphs.main.nodes.splice(-1,0,{id,type:'MEMORY.WRITE',dependsOn:['context'],input:{memories:[{content:{$ref:'nodes.context.items'}}]}});
+  solve.dependsOn=[...(solve.dependsOn??[]),id];solve.input.messages={$op:'concat',args:[solve.input.messages,[{role:'user',content:{$ref:'nodes.'+id}}]]};
  }
- return{rationale:'Test a connected native mechanism against the measured parent',definition:d,...(auxiliary.length?{mutation:{primaryNodeId:primary,auxiliary}}:{})};
+ return{rationale:'Test one functional node with necessary reference wiring',definition:d};
 }
 function summary(d:any){return{valid:true,score:.5,standardDeviation:0,repeats:1,examples:1,successfulRuns:1,failedRuns:0,wrongRuns:0,timeoutRuns:0,inputTokens:1,outputTokens:1,totalTokens:2,durationMs:0,results:[{caseId:task.id+'#1',valid:true,score:.5,prediction:'49',expected:'PRIVATE_SENTINEL',normalizedExpected:'PRIVATE_SENTINEL',normalizedPrediction:'49',method:'fixture',latencyMs:0,inputTokens:1,outputTokens:1,totalTokens:2}],publicTraces:[{executedNodeIds:expandedOfficialNodes(d).map(n=>n.id)}]};}
 
@@ -59,7 +57,7 @@ test('model-error classification cannot be assigned to a non-model parse source'
 
 test('official search preserves parent policy, protected native directions, and private-reference exclusion',async()=>{
  const directions:string[]=[],requests:string[]=[];
- const runtime:any={async run(_g:any,input:any){requests.push(input.request);const request=JSON.parse(input.request),direction=request.exploration.direction;directions.push(direction);return{proposal:{status:'success',output:{message:{content:JSON.stringify(child(direction))}}}};}};
+ const runtime:any={async run(_g:any,input:any){requests.push(input.request);const request=JSON.parse(input.request),direction=request.exploration.direction;directions.push(direction);return{proposal:{status:'success',output:{message:{content:JSON.stringify(child(direction,request.parent.definition))}}}};}};
  const result=await searchOfficialWorkflows({runtime,model:{provider:'mock',model:'mock'},dataset:'drop',publicTasks:[task],expectedRepeats:1,maxValidEvaluations:5,maxDesignRounds:4,maxProposalAttempts:1,evaluate:async d=>summary(d)});
  assert.deepEqual(directions,['interaction','context-retrieval','native-reasoning','memory-cache']);assert.equal(result.state.validEvaluations,5);assert(!requests.join('').includes('PRIVATE_SENTINEL'));assert.equal(result.best.definition.version,1);
  for(const text of requests){
@@ -94,7 +92,7 @@ test('task-world baselines declare real Loop/tool/observation flow under officia
 
 test('same-round metadata repair can admit a previously rejected executable definition',async()=>{
  let calls=0;const proposal=child('interaction');
- const runtime:any={async run(){calls++;const current=clone(proposal);if(calls===1)delete current.mutation;return{proposal:{status:'success',output:{message:{content:JSON.stringify(current)}}}};}};
+ const runtime:any={async run(){calls++;const current=clone(proposal);if(calls===1)current.mutation={primaryNodeId:'new-interaction',auxiliary:{bad:'not an array'}};return{proposal:{status:'success',output:{message:{content:JSON.stringify(current)}}}};}};
  const result=await searchOfficialWorkflows({runtime,model:{provider:'mock',model:'mock'},dataset:'drop',publicTasks:[task],expectedRepeats:1,maxValidEvaluations:2,maxDesignRounds:1,maxProposalAttempts:2,evaluate:async d=>summary(d)});
  assert.equal(calls,2);assert.deepEqual(result.state.history.map(r=>r.status),['valid','invalid-proposal','valid']);assert.equal(result.state.validEvaluations,2);
 });

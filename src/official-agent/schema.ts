@@ -59,27 +59,43 @@ export function validateOfficialDefinition(source:unknown,tools:readonly ToolDef
 }
 export function officialArtifactHash(d:AgentDefinition,tools:readonly ToolDefinition[]=[]):string{return digest({definition:d,toolArtifacts:tools});}
 export function expandedOfficialNodes(d:AgentDefinition){const c=compileAgent(d);return Object.entries(c.graphs).flatMap(([graph,g])=>g.tasks.map(n=>({id:`${graph}/${n.id}`,type:String(n.node),dependencies:n.dependencies.map(dep=>`${graph}/${dep}`)})));}
-export function validateOfficialChange(parent:AgentDefinition,child:AgentDefinition,mutation?:MutationExplanation,parentTools:readonly ToolDefinition[]=[],childTools:readonly ToolDefinition[]=[]):void{
- validateOfficialDefinition(child,childTools);
- if(mutation!==undefined)mutation=validateMutationExplanation(mutation);
+export const OFFICIAL_MUTATION_LIMITS=Object.freeze({policy:'one-functional-node-wiring-separate-v1',maxFunctionalNodeChanges:1,maxAddedCompanions:0,maxDeclaredNodes:24,maxToolChanges:1,
+ counting:'added + removed + functional modifications <= 1; preserve ID when replacing a node; dependsOn and necessary node-reference wiring are counted separately',dependencyEdgeEdits:'max(12,4*N), N=max(parent,child nodes); reversal costs two'});
+const OMIT=Symbol('wiring');
+/** Separate reference wiring from literal prompts/operations; native validation still freezes host bindings. */
+function functionalInput(value:any):any{
+ if(value===null||typeof value!=='object')return value;
+ if(typeof value.$ref==='string')return OMIT;
+ if(value.role==='user'&&value.content&&functionalInput(value.content)===OMIT)return OMIT;
+ if(Array.isArray(value)){const items=value.map(functionalInput).filter(v=>v!==OMIT);return items.length?items:OMIT;}
+ if(value.$op==='concat'){
+  const flatten=(v:any):any[]=>v===OMIT?[]:Array.isArray(v)?v.flatMap(flatten):v&&typeof v==='object'&&Object.keys(v).length===1&&Array.isArray(v.__concat)?v.__concat.flatMap(flatten):[v];
+  const args=flatten(functionalInput(value.args));return args.length?{__concat:args}:OMIT;
+ }
+ const entries=Object.entries(value).map(([k,v])=>[k,functionalInput(v)] as const).filter(([,v])=>v!==OMIT);
+ return entries.length?Object.fromEntries(entries):OMIT;
+}
+export function officialMutationDiff(parent:AgentDefinition,child:AgentDefinition){
  const unique=(id:string)=>[parent,child].every(d=>officialNodes(d).filter(n=>n.node.id===id).length<=1);
  const stable=(d:AgentDefinition)=>officialNodes(d).map(n=>({...n,id:unique(n.node.id)?n.node.id:n.id}));
  const before=stable(parent),after=stable(child),old=new Map(before.map(n=>[n.id,n]));
- const added=after.filter(n=>!old.has(n.id)),removed=before.filter(n=>!after.some(v=>v.id===n.id));
- check(removed.length<=1,'Remove at most one unrelated existing leaf node','/mutation');
- if(added.length>1){
-  const ids=new Set(added.map(n=>n.id));const resolve=(id:string)=>ids.has(id)?id:added.find(n=>n.node.id===id)?.id;
-  const primary=mutation&&resolve(mutation.primaryNodeId);check(primary,'Multiple additions need mutation.primaryNodeId','/mutation/primaryNodeId');
-  const auxiliary=mutation?.auxiliary??[],extra=new Set(auxiliary.map(n=>resolve(n.nodeId)));
-  check(extra.size===added.length-1&&!extra.has(undefined)&&!extra.has(primary)&&added.every(n=>n.id===primary||extra.has(n.id))&&auxiliary.every(n=>n.reason?.trim()),'Every added companion needs its own reason, excluding the primary','/mutation/auxiliary');
-  const links=new Map(after.map(n=>[n.id,new Set<string>()]));
-  for(const n of after)for(const dep of n.node.dependsOn??[]){const target=after.find(x=>x.graph===n.graph&&x.node.id===dep);if(target)links.get(n.id)!.add(target.id);}
-  const visit=(start:string,reverse:boolean)=>{const found=new Set<string>();const walk=(id:string)=>{if(found.has(id))return;found.add(id);for(const [key,deps]of links)if(reverse?deps.has(id):key===id)for(const next of reverse?[key]:deps)walk(next);};walk(start);return found;};
-  const ancestors=visit(primary!,false),descendants=visit(primary!,true);check(added.every(n=>ancestors.has(n.id)||descendants.has(n.id)),'Added companions must precede or follow the primary','/mutation/auxiliary');
- }
- check(after.filter(n=>old.has(n.id)&&digest(n.node.input)!==digest(old.get(n.id)!.node.input)).length<=5,'At most five existing node inputs may change','/graphs');
+ const added=after.filter(n=>!old.has(n.id)).map(n=>n.id),removed=before.filter(n=>!after.some(v=>v.id===n.id)).map(n=>n.id);
+ const signature=(node:AgentNode)=>digest({type:node.type,input:functionalInput(node.input)===OMIT?null:functionalInput(node.input),require:node.require??null});
+ const retained=after.filter(n=>old.has(n.id));
+ const modified=retained.filter(n=>signature(n.node)!==signature(old.get(n.id)!.node)).map(n=>n.id);
+ const wiringOnly=retained.filter(n=>!modified.includes(n.id)&&digest(n.node)!==digest(old.get(n.id)!.node)).map(n=>n.id);
+ return{added,removed,modified,wiringOnly,count:added.length+removed.length+modified.length};
+}
+export function validateOfficialChange(parent:AgentDefinition,child:AgentDefinition,mutation?:MutationExplanation,parentTools:readonly ToolDefinition[]=[],childTools:readonly ToolDefinition[]=[]):void{
+ validateOfficialDefinition(child,childTools);
+ if(mutation!==undefined)mutation=validateMutationExplanation(mutation);
+ const diff=officialMutationDiff(parent,child);
+ check(diff.count<=1,`Functional node limit exceeded: allowed=1 actual=${diff.count}; added=${JSON.stringify(diff.added)}; removed=${JSON.stringify(diff.removed)}; modified=${JSON.stringify(diff.modified)}; wiringOnly=${JSON.stringify(diff.wiringOnly)}`,'/mutation',
+  'Keep exactly one added, removed or functionally modified node. Replace a node under its existing ID. Restore all other functional edits; necessary dependsOn/reference wiring is separate. Do not fix this by editing mutation metadata.');
+ check(!mutation?.auxiliary.length,'Companion additions are disabled: allowed=0; single functional node limit=1','/mutation/auxiliary','Use auxiliary:[]; stage companion additions in later candidates.');
  const edgeSet=(d:AgentDefinition)=>new Set(expandedOfficialNodes(d).flatMap(n=>n.dependencies.map(dep=>`${dep}->${n.id}`))),a=edgeSet(parent),b=edgeSet(child);
- check([...a].filter(e=>!b.has(e)).length+[...b].filter(e=>!a.has(e)).length<=dependencyEditBudget(Math.max(expandedOfficialNodes(parent).length,expandedOfficialNodes(child).length,1)),'Expanded dependency edit budget exceeded','/graphs');
+ const removedEdges=[...a].filter(e=>!b.has(e)),addedEdges=[...b].filter(e=>!a.has(e)),edgeLimit=dependencyEditBudget(Math.max(expandedOfficialNodes(parent).length,expandedOfficialNodes(child).length,1));
+ check(removedEdges.length+addedEdges.length<=edgeLimit,`Expanded dependency edit budget exceeded: allowed=${edgeLimit} actual=${removedEdges.length+addedEdges.length}; added=${JSON.stringify(addedEdges)}; removed=${JSON.stringify(removedEdges)}`,'/graphs','Restore excess dependency changes; a reversal counts as removal plus addition.');
  const names=new Set([...parentTools,...childTools].map(t=>t.name));check([...names].filter(name=>digest(parentTools.find(t=>t.name===name)??null)!==digest(childTools.find(t=>t.name===name)??null)).length<=1,'At most one tool artifact may change','/toolArtifacts');
  check(officialArtifactHash(parent,parentTools)!==officialArtifactHash(child,childTools),'Duplicate unchanged candidate','/definition');
 }
